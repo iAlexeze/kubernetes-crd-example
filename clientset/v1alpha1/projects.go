@@ -1,92 +1,47 @@
 package v1alpha1
 
 import (
-	"github.com/ialexeze/kubernetes-crd-example/pkg/config/api/types/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes/scheme"
+	"context"
+
+	"github.com/ialexeze/kubernetes-crd-example/pkg/config/domain"
+	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/kubeclient"
 	"k8s.io/client-go/rest"
 )
 
-type ProjectInterface interface {
-	List(opts metav1.ListOptions) (*v1alpha1.ProjectList, error)
-	Get(name string, options metav1.GetOptions) (*v1alpha1.Project, error)
-	Create(*v1alpha1.Project) (*v1alpha1.Project, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Name() string
-	Namespace() string
-	RestClient() rest.Interface
-	// ...
-}
-
 type projectClient struct {
 	restClient rest.Interface
-	ns         string
+	kube       *kubeclient.Kubeclient
+	namespace  string
 	name       string
 }
 
-var _ ProjectInterface = (*projectClient)(nil)
+var _ domain.ProjectInterface = (*projectClient)(nil)
+var _ domain.Component = (*projectClient)(nil)
+
+func (p *projectClient) NewProjectClient(kube *kubeclient.Kubeclient, namespace string) *projectClient {
+	return &projectClient{
+		kube:      kube,
+		namespace: namespace,
+	}
+}
+
+func (p *projectClient) Start(ctx context.Context) error {
+	p.restClient = p.kube.RestClient()
+	return nil
+}
+
+// Just to fully implement the components interface
+func (c *projectClient) Shutdown(ctx context.Context) {}
 
 // Getters
-func (c *projectClient) Name() string {
-	return c.name
+func (p *projectClient) Name() string {
+	return p.name
 }
 
-func (c *projectClient) Namespace() string {
-	return c.ns
+func (p *projectClient) Namespace() string {
+	return p.namespace
 }
 
-func (c *projectClient) RestClient() rest.Interface {
-	return c.restClient
-}
-
-// Functions
-func (c *projectClient) List(opts metav1.ListOptions) (*v1alpha1.ProjectList, error) {
-	result := v1alpha1.ProjectList{}
-	err := c.RestClient().
-		Get().
-		Namespace(c.Namespace()).
-		Resource(c.Name()).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Do().
-		Into(&result)
-
-	return &result, err
-}
-
-func (c *projectClient) Get(name string, opts metav1.GetOptions) (*v1alpha1.Project, error) {
-	result := v1alpha1.Project{}
-	err := c.RestClient().
-		Get().
-		Namespace(c.Namespace()).
-		Resource(c.Name()).
-		Name(name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Do().
-		Into(&result)
-
-	return &result, err
-}
-
-func (c *projectClient) Create(project *v1alpha1.Project) (*v1alpha1.Project, error) {
-	result := v1alpha1.Project{}
-	err := c.RestClient().
-		Post().
-		Namespace(c.Namespace()).
-		Resource(c.Name()).
-		Body(project).
-		Do().
-		Into(&result)
-
-	return &result, err
-}
-
-func (c *projectClient) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	opts.Watch = true
-	return c.RestClient().
-		Get().
-		Namespace(c.Namespace()).
-		Resource(c.Name()).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Watch()
+func (p *projectClient) RestClient() rest.Interface {
+	return p.restClient
 }

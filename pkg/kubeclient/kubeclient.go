@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type kubeclient struct {
+type Kubeclient struct {
 	isCustom   bool
 	name       string
 	restConfig *rest.Config
@@ -27,22 +27,22 @@ type Options struct {
 	Masterurl  string
 }
 
-var _ domain.Component = (*kubeclient)(nil)
+var _ domain.Component = (*Kubeclient)(nil)
 
-func NewKubeclient(isCustom bool, opts Options) *kubeclient {
-	return &kubeclient{
+func NewKubeclient(isCustom bool, opts Options) *Kubeclient {
+	return &Kubeclient{
 		name: "kubeclient",
 		Opts: opts,
 	}
 }
 
-func (k *kubeclient) Start(ctx context.Context) error {
+func (k *Kubeclient) Start(ctx context.Context) error {
 	cfg, err := k.buildConfig()
 	if err != nil {
 		return err
 	}
 
-	// Populate kubeclient's rest config
+	// Populate Kubeclient's rest config
 	k.restConfig = cfg
 
 	// Build clientset and restClient conditonally
@@ -60,14 +60,14 @@ func (k *kubeclient) Start(ctx context.Context) error {
 	return nil
 }
 
-func (k *kubeclient) buildConfig() (*rest.Config, error) {
+func (k *Kubeclient) buildConfig() (*rest.Config, error) {
 	if k.Opts.Kubeconfig != "" {
 		return clientcmd.BuildConfigFromFlags(k.Opts.Masterurl, k.Opts.Kubeconfig)
 	}
 	return rest.InClusterConfig()
 }
 
-func (k *kubeclient) buildRestClient() (*rest.RESTClient, error) {
+func (k *Kubeclient) buildRestClient() (*rest.RESTClient, error) {
 	config := *k.restConfig
 
 	config.ContentConfig.GroupVersion = &schema.GroupVersion{
@@ -83,16 +83,16 @@ func (k *kubeclient) buildRestClient() (*rest.RESTClient, error) {
 }
 
 // Methods
-func (k *kubeclient) Shutdown(ctx context.Context) {}
+func (k *Kubeclient) Shutdown(ctx context.Context) {}
 
-func (k *kubeclient) Name() string {
+func (k *Kubeclient) Name() string {
 	return k.name
 }
 
-func (k *kubeclient) Clientset() kubernetes.Interface {
+func (k *Kubeclient) Clientset() kubernetes.Interface {
 	return k.clientset
 }
 
-func (k *kubeclient) RestClient() rest.Interface {
+func (k *Kubeclient) RestClient() rest.Interface {
 	return k.restClient
 }
