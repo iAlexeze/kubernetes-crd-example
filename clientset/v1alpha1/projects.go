@@ -33,6 +33,9 @@ func NewProjectClient(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, names
 }
 
 func (p *projectClient) Start(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	p.restClient = p.kube.RestClient()
 	return nil
 }

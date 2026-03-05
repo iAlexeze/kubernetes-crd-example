@@ -22,7 +22,7 @@ func buildManager(cfg *config.Config, scheme *runtime.Scheme) *manager.Manager {
 	var components []domain.Component
 
 	// health server
-	hs := health.NewHealthServer("projects", cfg.Health().Port)
+	hs := health.NewHealthServer("projects", cfg)
 	components = append(components, hs)
 
 	// kube client

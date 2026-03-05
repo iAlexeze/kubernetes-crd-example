@@ -126,35 +126,41 @@ func (le *leaderElection) leaseLock() *resourcelock.LeaseLock {
 func (le *leaderElection) callbacks() leaderelection.LeaderCallbacks {
 	return leaderelection.LeaderCallbacks{
 		OnStartedLeading: func(ctx context.Context) {
-			le.events.Recorder().Eventf(
-				&corev1.ObjectReference{
-					Name:      le.name,
-					Namespace: le.opts.Namespace,
-					Kind:      le.kind(),
-				}, corev1.EventTypeNormal, "LeaderElected", "%s became leader", hostname(),
-			)
+			if le.events.Recorder() != nil {
+				le.events.Recorder().Eventf(
+					&corev1.ObjectReference{
+						Name:      le.name,
+						Namespace: le.opts.Namespace,
+						Kind:      le.kind(),
+					}, corev1.EventTypeNormal, "LeaderElected", "%s became leader", hostname(),
+				)
+			}
 
 			logger.Info().Msgf("%s 🏆 Became leader, starting controller...", hostname())
 			le.run(ctx)
 		},
 		OnStoppedLeading: func() {
-			le.events.Recorder().Eventf(
-				&corev1.ObjectReference{
-					Name:      le.name,
-					Namespace: le.opts.Namespace,
-					Kind:      le.kind(),
-				}, corev1.EventTypeWarning, "LeaderLost", "%s lost leadership", hostname(),
-			)
+			if le.events.Recorder() != nil {
+				le.events.Recorder().Eventf(
+					&corev1.ObjectReference{
+						Name:      le.name,
+						Namespace: le.opts.Namespace,
+						Kind:      le.kind(),
+					}, corev1.EventTypeWarning, "LeaderLost", "%s lost leadership", hostname(),
+				)
+			}
 			logger.Info().Msgf("%s👋 Stopped leading - lease released", hostname())
 		},
 		OnNewLeader: func(identity string) {
-			le.events.Recorder().Eventf(
-				&corev1.ObjectReference{
-					Name:      le.name,
-					Namespace: le.opts.Namespace,
-					Kind:      le.kind(),
-				}, corev1.EventTypeNormal, "NewLeaderElected", "%s elected as leader", hostname(),
-			)
+			if le.events.Recorder() != nil {
+				le.events.Recorder().Eventf(
+					&corev1.ObjectReference{
+						Name:      le.name,
+						Namespace: le.opts.Namespace,
+						Kind:      le.kind(),
+					}, corev1.EventTypeNormal, "NewLeaderElected", "%s elected as leader", hostname(),
+				)
+			}
 			logger.Info().Msgf("👑 New leader elected: %s", identity)
 		},
 	}

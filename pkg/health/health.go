@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/domain"
+	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/config"
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/logger"
 )
 
@@ -17,16 +18,18 @@ type HealthServer struct {
 	ready  atomic.Bool
 	port   string
 	client string
+	cfg    *config.Config
 }
 
-func NewHealthServer(client, port string) *HealthServer {
+func NewHealthServer(client string, cfg *config.Config) *HealthServer {
 	if client == "" {
 		client = "service"
 	}
 
 	hs := &HealthServer{
 		client: client,
-		port:   port,
+		port:   cfg.Health().Port,
+		cfg:    cfg,
 	}
 
 	// server is not ready on startup. modified when client is ready to process requests
@@ -74,8 +77,12 @@ func (h *HealthServer) SetReady() {
 func (h *HealthServer) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	mux.Handle("/health", h.logRouteMiddleware(http.HandlerFunc(h.healthHandler)))
-	mux.Handle("/ready", h.logRouteMiddleware(http.HandlerFunc(h.readyHandler)))
-
+	if h.cfg.IsDev() {
+		mux.Handle("/health", h.logRouteMiddleware(http.HandlerFunc(h.healthHandler)))
+		mux.Handle("/ready", h.logRouteMiddleware(http.HandlerFunc(h.readyHandler)))
+	} else {
+		mux.HandleFunc("/health", h.healthHandler)
+		mux.HandleFunc("/ready", h.readyHandler)
+	}
 	return mux
 }

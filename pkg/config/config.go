@@ -43,9 +43,9 @@ func Init(filenames ...string) (*Config, error) {
 			WriteTimeout: GetDurEnvSeconds("SRV_WRITE_TIMEOUT", 20),
 		},
 		leader: leaderElection{
-			LeaseDuration: GetDurEnvSeconds("LEASE_DURATION", 30),
-			RenewDeadline: GetDurEnvSeconds("RENEW_DEADLINE", 6),
-			RetryPeriod:   GetDurEnvSeconds("RETRY_PERIOD", 2),
+			LeaseDuration: GetDurEnvSeconds("LEASE_DURATION", 60),
+			RenewDeadline: GetDurEnvSeconds("RENEW_DEADLINE", 40),
+			RetryPeriod:   GetDurEnvSeconds("RETRY_PERIOD", 10),
 		},
 	}
 

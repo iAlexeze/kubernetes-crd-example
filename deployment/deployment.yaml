@@ -30,17 +30,17 @@ spec:
             exec:
               command: ["/bin/sh", "-c", "sleep 5"]  # Extra time for cleanup
         ports:
-        - containerPort: 8080
+        - containerPort: 5000
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 5000
           initialDelaySeconds: 15
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /ready
-            port: 8080
+            port: 5000
           initialDelaySeconds: 5
           periodSeconds: 5
         env:
@@ -54,3 +54,11 @@ spec:
           value: "5"
         - name: APP_ENV
           value: "staging"
+        - name: LEASE_DURATION
+          value: "60"
+        - name: RENEW_DEADLINE
+          value: "40"
+        - name: RETRY_PERIOD
+          value: "10"
+        - name: PORT
+          value: "5000"

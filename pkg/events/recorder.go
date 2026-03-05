@@ -40,6 +40,10 @@ func NewRecorder(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, opts Optio
 }
 
 func (r *Recorder) Start(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	r.broadcaster = record.NewBroadcaster(record.WithContext(ctx))
 	r.broadcaster.StartRecordingToSink(
 		&typedcorev1.EventSinkImpl{

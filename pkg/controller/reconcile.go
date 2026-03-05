@@ -85,12 +85,13 @@ func (c *Controller) reconcileNormal(ctx context.Context, project *v1alpha1.Proj
 	// Add your business logic here
 	// e.g., ensure dependent resources exist, update status, etc.
 
-	c.events.Recorder().Eventf(
-		project,
-		corev1.EventTypeNormal,
-		"ProjectReconciled",
-		"%s project reconciled successfully", project.Name,
-	)
+	if c.events.Recorder() != nil {
+		c.events.Recorder().Eventf(
+			project,
+			corev1.EventTypeNormal,
+			"ProjectReconciled",
+			"%s project reconciled successfully", project.Name,
+	)}
 	logger.Debug().Msgf("Normal reconciliation for %s", project.Name)
 	return nil
 }
@@ -101,11 +102,12 @@ func (c *Controller) handleDeletion(ctx context.Context, project *v1alpha1.Proje
 	// e.g., delete external resources, remove finalizers
 
 	// Emit events
-	c.events.Recorder().Eventf(
-		project,
-		corev1.EventTypeWarning,
-		"ProjectDelete",
-		"%s project deleted from %s namespace", project.Name, project.Namespace,
-	)
+	if c.events.Recorder() != nil {
+		c.events.Recorder().Eventf(
+			project,
+			corev1.EventTypeWarning,
+			"ProjectDelete",
+			"%s project deleted from %s namespace", project.Name, project.Namespace,
+	)}
 	return nil
 }

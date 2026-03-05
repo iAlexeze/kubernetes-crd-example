@@ -14,8 +14,10 @@ This controller manages `Project` custom resources in Kubernetes. It watches for
 - Kubernetes client-go informer patterns
 - Leader election for high availability
 - Workqueue with rate limiting for reliable processing
+- Event recording for Kubernetes events
 - Graceful shutdown with context propagation
 - Health and readiness probes for production deployments
+- Environment-aware logging (noisy probes silenced in production)
 
 ## 🏗️ **Architecture**
 
@@ -28,6 +30,7 @@ flowchart TB
  subgraph subGraph1["Core Components"]
         HS["Health Server"]
         KC["KubeClient"]
+        EV["Event Recorder"]
         PC["Project Client"]
   end
  subgraph subGraph2["Informer Layer"]
@@ -52,28 +55,32 @@ flowchart TB
         subGraph3
         subGraph4
   end
-    CRD L_CRD_API_0@--> API
-    API L_API_KC_0@--> KC
-    KC L_KC_PC_0@--> PC
-    PC L_PC_I_0@--> I
-    I L_I_S_0@--> S & Q
-    Q L_Q_C_0@--> C
-    C L_C_W1_0@--> W1 & W2 & W3
-    W1 L_W1_M_0@--> M
-    W2 L_W2_M_0@--> M
-    W3 L_W3_M_0@--> M
-    M L_M_HS_0@--> HS
-    LE L_LE_C_0@--> C
+    CRD L_CRD_API_0@-- watches --> API
+    API L_API_KC_0@-- client --> KC
+    KC L_KC_PC_0@-- provides --> PC & EV
+    PC L_PC_I_0@-- list/watch --> I
+    I L_I_S_0@-- populates --> S
+    I L_I_Q_0@-- enqueues --> Q
+    Q L_Q_C_0@-- events --> C
+    C L_C_W1_0@-- processes --> W1 & W2 & W3
+    W1 L_W1_M_0@-- reconcile --> M
+    W2 L_W2_M_0@-- reconcile --> M
+    W3 L_W3_M_0@-- reconcile --> M
+    M L_M_HS_0@-- health checks --> HS
+    LE L_LE_C_0@-- controls --> C
+    EV L_EV_API_0@-- records events --> API
 
     style CRD fill:#C8E6C9,stroke:#333,stroke-width:2px,color:#000000
     style API fill:#00C853,stroke:#333,stroke-width:2px,color:#FFFFFF
     style HS fill:#00C853,stroke:#333,stroke-width:2px,color:#FFFFFF
+    style EV fill:#00C853,stroke:#333,stroke-width:2px,color:#FFFFFF
     style LE fill:#C8E6C9,stroke:#333,stroke-width:2px,color:#000000
     style M fill:#FF6D00,stroke:#333,stroke-width:4px,color:#FFFFFF
 
     L_CRD_API_0@{ animation: fast } 
     L_API_KC_0@{ animation: fast } 
     L_KC_PC_0@{ animation: fast } 
+    L_KC_EV_0@{ animation: fast } 
     L_PC_I_0@{ animation: fast } 
     L_I_S_0@{ animation: fast } 
     L_I_Q_0@{ animation: fast } 
@@ -85,7 +92,8 @@ flowchart TB
     L_W2_M_0@{ animation: fast } 
     L_W3_M_0@{ animation: fast } 
     L_M_HS_0@{ animation: fast } 
-    L_LE_C_0@{ animation: fast }
+    L_LE_C_0@{ animation: fast } 
+    L_EV_API_0@{ animation: fast }
 ```
 
 ## ✨ **Features**
@@ -94,12 +102,14 @@ flowchart TB
 - **Leader Election**: High availability with automatic failover
 - **Workqueue with Rate Limiting**: Prevents reconcile storms with exponential backoff
 - **Configurable Workers**: Scale processing horizontally
-- **Health & Readiness Probes**: Kubernetes liveness and readiness endpoints
-- **Graceful Shutdown**: Proper cleanup on termination signals
-- **Structured Logging**: JSON-formatted logs for easy aggregation
+- **Event Recording**: Kubernetes events for visibility into controller actions
+- **Health & Readiness Probes**: Kubernetes liveness and readiness endpoints with environment-aware logging
+- **Graceful Shutdown**: Proper cleanup on termination signals with lease release
+- **Structured Logging**: JSON-formatted logs with environment-based verbosity
 - **Context Propagation**: Respects cancellation throughout the stack
 - **Tombstone Handling**: Gracefully handles deleted objects
 - **Environment-based Configuration**: Flexible config via `.env` or system variables
+- **Production-Ready Manifests**: Ready-to-use Kubernetes deployments and RBAC
 
 ## 📋 **Prerequisites**
 
@@ -129,7 +139,7 @@ vim .env
 
 ### 3. Install CRD
 ```bash
-kubectl apply -f kubernetes/crd.yaml
+kubectl apply -f crd-config/crd.yaml
 ```
 
 ### 4. Run Locally
@@ -146,10 +156,22 @@ go run ./cmd/
 ### 5. Create Project Resources
 ```bash
 # In another terminal
-kubectl apply -f kubernetes/project.yaml
+kubectl apply -f crd-config/project.yaml
 ```
 
-### 6. Watch the Magic Happen
+### 6. Deploy the Project Controller with RBAC
+```bash
+# Apply all Kubernetes manifests (deployment, rbac, etc.)
+kubectl apply -f deployment/
+```
+
+_You can modify the deployment configuration in the `deployment/` folder to suit your environment:_
+
+- `deployment.yaml` - Controller deployment with health probes
+- `rbac.yaml` - ServiceAccount, ClusterRole, and ClusterRoleBinding
+- `service.yaml` - Optional service for health endpoints
+
+### 7. Watch the Magic Happen
 ```bash
 # Watch controller logs
 kubectl logs -f deployment/project-controller -n your-namespace
@@ -157,6 +179,9 @@ kubectl logs -f deployment/project-controller -n your-namespace
 # Check projects
 kubectl get projects
 kubectl get projects -o yaml
+
+# View controller events
+kubectl get events --all-namespaces --watch
 ```
 
 ## ⚙️ **Configuration**
@@ -253,47 +278,58 @@ cfg, err := config.Init() // Automatically loads .env file
 ```
 
 ### 2. **Health Server** (`pkg/health`)
-Provides liveness and readiness endpoints:
-- `/health` - Returns 200 when the service is running
-- `/ready` - Returns 200 only after all components are ready
+Provides liveness and readiness endpoints with environment-aware logging:
+- `/health` - Returns 200 when the service is running (no logs in production)
+- `/ready` - Returns 200 only after all components are ready (no logs in production)
+- Conditional logging based on `APP_ENV` to prevent noisy probes in production
 
-### 3. **KubeClient** (`pkg/kubeclient`)
+### 3. **Event Recorder** (`pkg/events`)
+Kubernetes event recording for controller visibility:
+- Broadcasts events to the Kubernetes API
+- Used by leader election and reconciliation to emit status events
+- Integrates with `kubectl describe` and `kubectl get events`
+
+### 4. **KubeClient** (`pkg/kubeclient`)
 Wraps Kubernetes client operations:
 - Built-in types via `clientset`
 - CRD operations via `restClient` with custom scheme
+- Provides clients to other components
 
-### 4. **Project Client** (`clientset/v1alpha1`)
+### 5. **Project Client** (`clientset/v1alpha1`)
 Type-safe client for Project CRUD operations:
 ```go
 projects, err := client.Projects(namespace).List(ctx, metav1.ListOptions{})
 project, err := client.Projects(namespace).Get(ctx, name, metav1.GetOptions{})
 ```
 
-### 5. **Informer** (`pkg/informer`)
+### 6. **Informer** (`pkg/informer`)
 Watches Project resources and maintains a local cache:
 - List/Watch with the Kubernetes API
 - Thread-safe store for quick access
 - Workqueue for event processing
 - Automatic resync period
 
-### 6. **Controller** (`pkg/controller`)
+### 7. **Controller** (`pkg/controller`)
 Processes events from the queue:
 - Manages worker goroutines
 - Executes reconciliation logic
+- Emits Kubernetes events for visibility
 - Handles deletions with tombstone support
 - Rate limiting on errors
 
-### 7. **Leader Election** (`pkg/leader`)
+### 8. **Leader Election** (`pkg/leader`)
 Ensures only one instance reconciles:
 - Acquires lease via Kubernetes coordination API
 - Only leader runs the controller
 - Automatic failover
+- Emits leader election events
 
-### 8. **Manager** (`pkg/manager`)
+### 9. **Manager** (`pkg/manager`)
 Orchestrates all components:
 - Ordered startup and shutdown
 - Graceful signal handling
 - Readiness coordination
+- Sets health server ready when all components are running
 
 ## 🚀 **Extending the Controller**
 
@@ -306,6 +342,7 @@ package controller
 import (
     "context"
     "github.com/ialexeze/kubernetes-crd-example/pkg/config/api/types/v1alpha1"
+    corev1 "k8s.io/api/core/v1"
 )
 
 // reconcileNormal handles the normal reconciliation logic
@@ -319,6 +356,17 @@ func (c *Controller) reconcileNormal(ctx context.Context, project *v1alpha1.Proj
     // - Update status conditions
     
     logger.Debug().Msgf("Normal reconciliation for %s", project.Name)
+    
+    // Emit Kubernetes event
+    if c.events.Recorder() != nil {
+        c.events.Recorder().Eventf(
+            project,
+            corev1.EventTypeNormal,
+            "ProjectReconciled",
+            "Project %s reconciled successfully", project.Name,
+        )
+    }
+    
     return nil
 }
 
@@ -332,6 +380,17 @@ func (c *Controller) handleDeletion(ctx context.Context, project *v1alpha1.Proje
     // - Notify external systems
     
     logger.Info().Msgf("Handling deletion for %s", project.Name)
+    
+    // Emit Kubernetes event
+    if c.events.Recorder() != nil {
+        c.events.Recorder().Eventf(
+            project,
+            corev1.EventTypeNormal,
+            "ProjectDeleted",
+            "Project %s cleaned up successfully", project.Name,
+        )
+    }
+    
     return nil
 }
 ```
@@ -346,7 +405,7 @@ To add support for a new CRD type:
 
 ## 💓 **Health Checks**
 
-The health server provides crucial Kubernetes probe endpoints:
+The health server provides crucial Kubernetes probe endpoints with environment-aware logging to prevent noisy logs in production.
 
 ### Before Readiness (Starting Up)
 ```json
@@ -402,9 +461,11 @@ curl -sS localhost:5000/health | jq
 }
 ```
 
+**Note**: In production environments (`APP_ENV=production`), health check requests are not logged to prevent log spam from Kubernetes probes.
+
 ## 🔄 **Graceful Shutdown**
 
-The manager handles termination signals (SIGINT, SIGTERM) gracefully:
+The manager handles termination signals (SIGINT, SIGTERM) gracefully, ensuring leader leases are released and all components clean up properly:
 
 ```bash
 ^C
@@ -413,6 +474,8 @@ The manager handles termination signals (SIGINT, SIGTERM) gracefully:
 {"level":"info","time":1772677012,"message":"health server status: offline"}
 {"level":"info","time":1772677012,"message":"shutting down: kubeclient..."}
 {"level":"info","time":1772677012,"message":"kubeclient status: offline"}
+{"level":"info","time":1772677012,"message":"shutting down: event handler..."}
+{"level":"info","time":1772677012,"message":"event handler status: offline"}
 {"level":"info","time":1772677012,"message":"shutting down: projects..."}
 {"level":"info","time":1772677012,"message":"projects status: offline"}
 {"level":"info","time":1772677012,"message":"shutting down: smart informer..."}
@@ -435,8 +498,21 @@ docker push your-registry/project-controller:latest
 ```
 
 ### Deploy to Kubernetes
+
+The `deployment/` folder contains ready-to-use manifests:
+
+```bash
+# Apply all manifests
+kubectl apply -f deployment/
+
+# Or apply individually
+kubectl apply -f deployment/rbac.yaml
+kubectl apply -f deployment/deployment.yaml
+kubectl apply -f deployment/service.yaml  # optional
+```
+
+### Deployment Manifest (`deployment/deployment.yaml`)
 ```yaml
-# deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -444,6 +520,11 @@ metadata:
   namespace: your-namespace
 spec:
   replicas: 2  # High availability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Ensure at least one pod is always running
   selector:
     matchLabels:
       app: project-controller
@@ -453,11 +534,14 @@ spec:
         app: project-controller
     spec:
       serviceAccountName: project-controller
+      terminationGracePeriodSeconds: 30  # Time to release leader lease
       containers:
       - name: controller
         image: your-registry/project-controller:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 5000
+          name: health
         livenessProbe:
           httpGet:
             path: /health
@@ -479,11 +563,19 @@ spec:
           value: "your-namespace"
         - name: WORKERS
           value: "3"
+        - name: APP_ENV
+          value: "production"  # Silences health check logs
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
 ```
 
-### Required RBAC
+### RBAC Manifest (`deployment/rbac.yaml`)
 ```yaml
-# rbac.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -504,6 +596,9 @@ rules:
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
   verbs: ["get", "create", "update"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -519,6 +614,22 @@ subjects:
   namespace: your-namespace
 ```
 
+### Service Manifest (Optional - `deployment/service.yaml`)
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: project-controller
+  namespace: your-namespace
+spec:
+  selector:
+    app: project-controller
+  ports:
+  - port: 5000
+    targetPort: 5000
+    name: health
+```
+
 ## 🔍 **Troubleshooting**
 
 ### Common Issues
@@ -527,13 +638,19 @@ subjects:
    - Check namespace: `kubectl config current-context` and ensure it matches `NAMESPACE` env
    - Verify informer sync: Look for "informer cache synced" in logs
 
-2. **Leader election not working**
-   - Check RBAC permissions for leases
-   - Verify `LEASE_DURATION` settings
+2. **Leader election not working / pods crashlooping during rollout**
+   - Ensure `terminationGracePeriodSeconds` is set sufficiently high (30s+)
+   - Check that leader election is configured with `ReleaseOnCancel: true`
+   - Verify RBAC permissions for leases
+   - Check old pod logs for "lease released" message
 
 3. **REST client nil errors**
    - Ensure `IN_CLUSTER` is set correctly
    - Check `KUBECONFIG` path validity
+
+4. **No events appearing**
+   - Verify RBAC permissions for events
+   - Check that event recorder started successfully
 
 ### Debugging Tips
 
@@ -549,6 +666,12 @@ kubectl get crd projects.crd-example.ialexeze.ai
 
 # Check leader lease
 kubectl get leases -n your-namespace
+
+# Watch events
+kubectl get events --all-namespaces --watch
+
+# Check current leader
+kubectl get lease resource-leader -n your-namespace -o jsonpath='{.spec.holderIdentity}'
 ```
 
 ## 🤝 **Contributing**
@@ -565,6 +688,7 @@ kubectl get leases -n your-namespace
 - Follow Go best practices
 - Use structured logging
 - Handle errors gracefully
+- Add events for important controller actions
 
 ## 🙏 **Acknowledgments**
 
@@ -576,14 +700,16 @@ This project is an extension and production-hardening of the excellent work by [
 
 Building upon this foundation, this implementation adds:
 - **Manager pattern** with component lifecycle
-- **Leader election** for high availability
+- **Leader election** with proper lease release on shutdown
 - **Workqueue** with rate limiting
-- **Health checks** with readiness coordination
+- **Event recording** for Kubernetes visibility
+- **Health checks** with environment-aware logging
 - **Graceful shutdown** handling
 - **Configurable workers** for scaling
 - **Production logging** with structured output
 - **Environment-based configuration** via `.env` and system variables
 - **Extensible reconciliation** pattern
+- **Ready-to-use Kubernetes manifests** in `deployment/` folder
 
 Special thanks to the Kubernetes community for the excellent client-go libraries and patterns.
 
