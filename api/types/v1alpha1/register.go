@@ -8,6 +8,7 @@ import (
 
 const GroupName = "crd-example.ialexeze.ai"
 const GroupVersion = "v1alpha1"
+const GroupKind = "Project"
 
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: GroupVersion}
 
