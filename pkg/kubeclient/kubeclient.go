@@ -110,6 +110,10 @@ func (k *Kubeclient) Name() string {
 	return k.name
 }
 
+func (k *Kubeclient) RestConfig() *rest.Config {
+	return k.restConfig
+}
+
 func (k *Kubeclient) Clientset() kubernetes.Interface {
 	return k.clientset
 }

@@ -3,43 +3,101 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/domain"
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/events"
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/informer"
+	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/kubeclient"
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/logger"
+	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/utils"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
 
 type Controller struct {
-	name     string
+	kube     *kubeclient.Kubeclient
 	informer *informer.Informer
 	events   *events.Recorder
 	queue    workqueue.TypedRateLimitingInterface[string]
-	workers  int
 	wg       sync.WaitGroup
+	workers  int
+	opts     CustomOptions
 }
 
 var _ domain.Component = (*Controller)(nil)
 
 func NewController(
+	kube *kubeclient.Kubeclient,
 	informer *informer.Informer,
 	events *events.Recorder,
 	workers int,
+	opts CustomOptions,
 ) *Controller {
 	return &Controller{
-		name:     "smart Controller",
-		events:   events,
+		kube:     kube,
 		informer: informer,
+		events:   events,
 		workers:  workers,
+		opts:     opts,
 	}
 }
 
+type CustomOptions struct {
+	IsCustom bool
+	Group    string
+	Kind     string
+	Version  string
+}
+
 func (c *Controller) Start(ctx context.Context) error {
+	// Confirm CRD type presence in cluster if custom
+	if c.opts.IsCustom {
+		logger.Info().Msg("Custom controller setup detected")
+		required := map[string]string{
+			"Group":   c.opts.Group,
+			"Kind":    c.opts.Kind,
+			"Version": c.opts.Version,
+		}
+
+		var missing []string
+		for k, v := range required {
+			if v == "" {
+				missing = append(missing, k)
+			}
+		}
+
+		if len(missing) > 0 {
+			err := fmt.Sprintf("missing required parameter(s): %s", strings.Join(missing, ", "))
+			logger.Error().Msgf("%s", err)
+			return fmt.Errorf("%s", err)
+		}
+
+		// Try with backoff
+		logger.Info().
+			Msgf("checking %s CRD: %s/%s...", c.opts.Kind, c.opts.Group, c.opts.Version)
+		if err := utils.RetryBackoff(
+			func() error {
+				return utils.WaitForCRD(
+					c.kube.RestConfig(),
+					c.opts.Group,
+					c.opts.Kind,
+					c.opts.Version,
+				)
+			}, 5, 2*time.Second,
+		); err != nil {
+			logger.Error().Err(err).
+				Msgf("%s CRD: %s/%s... not found", c.opts.Kind, c.opts.Group, c.opts.Version)
+			return err
+		}
+
+		logger.Info().
+			Msgf("Found %s CRD: %s/%s...", c.opts.Kind, c.opts.Group, c.opts.Version)
+	}
+
 	informer := c.informer
 
 	if informer == nil {
@@ -98,5 +156,5 @@ func (c *Controller) Shutdown(ctx context.Context) {
 
 // Controller name
 func (c *Controller) Name() string {
-	return c.name
+	return "smart controller"
 }

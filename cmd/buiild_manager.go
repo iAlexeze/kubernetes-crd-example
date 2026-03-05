@@ -10,12 +10,10 @@ import (
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/kubeclient"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/ialexeze/kubernetes-crd-example/pkg/config/api/types/v1alpha1"
 	clientV1alpha1 "github.com/ialexeze/kubernetes-crd-example/pkg/config/clientset/v1alpha1"
-	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/manager"
- 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/api/types/v1alpha1"
-	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/leader"
 	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/logger"
-	"k8s.io/apimachinery/pkg/runtime"
+	"github.com/ialexeze/kubernetes-crd-example/pkg/config/pkg/manager"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 )
 
@@ -38,7 +36,7 @@ func buildManager(cfg *config.Config) *startup {
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		logger.Fatal().Err(err).Msg("failed to add CRD scheme")
 	}
-	
+
 	// create domain components
 	var components []domain.Component
 
@@ -67,7 +65,18 @@ func buildManager(cfg *config.Config) *startup {
 	components = append(components, events)
 
 	// controller
-	ctrl := controller.NewController(informer, events, cfg.Cluster().Workers)
+	ctrl := controller.NewController(
+		kube,
+		informer,
+		events,
+		cfg.Cluster().Workers,
+		controller.CustomOptions{
+			IsCustom: true,
+			Group:    v1alpha1.GroupName,
+			Kind:     v1alpha1.GroupKind,
+			Version:  v1alpha1.GroupVersion,
+		},
+	)
 	components = append(components, ctrl) // Needed to get the controller informer synced and ready for manager to finish infrastructure setup
 
 	// Build and start manager

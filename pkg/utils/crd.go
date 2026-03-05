@@ -1,0 +1,32 @@
+package utils
+
+import (
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
+)
+
+// Wait for CRD creation
+func WaitForCRD(cfg *rest.Config, group, kind, version string) error {
+	disco, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(
+		memory.NewMemCacheClient(disco),
+	)
+
+	gk := schema.GroupKind{Group: group, Kind: kind}
+
+	_, err = mapper.RESTMapping(gk, version)
+	if meta.IsNoMatchError(err) {
+		return fmt.Errorf("CRD %s.%s/%s not installed", kind, group, version)
+	}
+	return err
+}
