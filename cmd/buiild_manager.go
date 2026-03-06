@@ -13,8 +13,8 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/reconciler"
-	"golang.org/x/sys/windows/registry"
 	"k8s.io/apimachinery/pkg/runtime"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mnsTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
 	projectTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
@@ -32,29 +32,19 @@ type startupCfg struct {
 	manager    *manager.Manager
 }
 
-type reconcilerCfg struct {
-	event        *event.Event
-	projInformer informer.InformerComponents
-	mnsInformer  informer.InformerComponents
-	kube         *kubeclient.Kubeclient
-}
-
 func buildManager(cfg *config.Config) *startupCfg {
-	// create scheme
 	scheme, err := buildScheme()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("scheme creation error")
 	}
 
-	// create domain components and informers
 	var components []domain.Component
-	var informers []informer.InformerComponents
 
-	// health server
+	// health
 	hs := health.NewHealthServer("projects", cfg)
 	components = append(components, hs)
 
-	// kube client
+	// kube
 	kube := kubeclient.NewKubeclient(true, kubeclient.Options{
 		Kubeconfig: cfg.Cluster().KubeconfigPath,
 		Masterurl:  cfg.Cluster().MasterURL,
@@ -63,137 +53,118 @@ func buildManager(cfg *config.Config) *startupCfg {
 	components = append(components, kube)
 
 	// queue
-	queue := queue.NewWorkqueue()
-	components = append(components, queue)
+	wq := queue.NewWorkqueue()
+	components = append(components, wq)
 
-	// projects
+	// clients
 	projectsClient := projectsClientV1alpha1.NewProjectClient(kube, scheme, cfg.Cluster().Namespace)
 	components = append(components, projectsClient)
 
-	// managednamespace
 	managedNamespaceClient := mnsClientV1alpha1.NewManagednsClient(kube, scheme, cfg.Cluster().Namespace)
 	components = append(components, managedNamespaceClient)
 
 	// informers
 	projInformer := informer.NewProjectInformer(
 		projectsClient,
-		queue,
+		wq,
 		cfg.Cluster().Namespace,
 		cfg.Cluster().DefaultResync,
 	)
-	informers = append(informers, projInformer)
 	components = append(components, projInformer)
 
 	mnsInformer := informer.NewManagedNamespaceInformer(
 		managedNamespaceClient,
-		queue,
+		wq,
 		cfg.Cluster().Namespace,
 		cfg.Cluster().DefaultResync,
 	)
-	informers = append(informers, mnsInformer)
 	components = append(components, mnsInformer)
 
-	// event
-	event := event.NewEvent(kube, scheme, event.Options{Component: cfg.App().Name})
-	components = append(components, event)
+	// events
+	ev := event.NewEvent(kube, scheme, event.Options{Component: cfg.App().Name})
+	components = append(components, ev)
+
+	// reconcilers
+	projReconciler := reconciler.NewProjectReconciler(projInformer, ev)
+	mnsReconciler := reconciler.NewManagedNamespaceReconciler(kube, mnsInformer, ev)
+
+	// registry
+	reg := controller.NewRegistry()
+	reg.Register(
+		domain.ProjectResource,
+		controller.CRDInfo{
+			Group:   projectTypev1.Group,
+			Version: projectTypev1.Version,
+			Kind:    projectTypev1.Kind,
+			APIPath: projectTypev1.APIPath,
+		},
+		projInformer,
+		projReconciler,
+	)
+	reg.Register(
+		domain.ManagedNamespaceResource,
+		controller.CRDInfo{
+			Group:   mnsTypev1.Group,
+			Version: mnsTypev1.Version,
+			Kind:    mnsTypev1.Kind,
+			APIPath: mnsTypev1.APIPath,
+		},
+		mnsInformer,
+		mnsReconciler,
+	)
 
 	// controller
 	ctrl := controller.NewController(
 		kube,
-		informers,
-		event,
-		queue,
+		reg,
+		ev,
+		wq,
 		cfg.Cluster().Workers,
-		controller.CustomOptions{
-			IsCustom: true,
-			Group:    projectTypev1.Group,
-			Kind:     projectTypev1.Kind,
-			Version:  projectTypev1.Version,
-		},
 	)
-	components = append(components, ctrl) // Needed to get the controller informer synced and ready for manager to finish infrastructure setup
+	components = append(components, ctrl)
 
-	// Build reconcilers
-	reconcilers := buildReconcilers(&reconcilerCfg{
-		event:        event,
-		projInformer: projInformer,
-		mnsInformer:  mnsInformer,
-		kube:         kube,
-	})
-
-	// Build and start manager
+	// manager
 	mgr := manager.NewManager(hs, cfg.Cluster().DefaultResync)
 
-	// Register all manager components
 	fmt.Println("==========================")
 	fmt.Println("REGISTERING MANAGER COMPONENTS...")
 	for _, comp := range components {
 		mgr.Register(comp)
+		logger.Info().Msgf("[%s] component registered", comp.Name())
 	}
-
-	var componentNames []string
+	var names []string
 	for _, comp := range components {
-		componentNames = append(componentNames, comp.Name())
+		names = append(names, comp.Name())
 	}
-	fmt.Printf("Available Components: %s\n", strings.Join(componentNames, ", "))
-	fmt.Println("==========================")
-
-	// Register reconcilers to controller
-	fmt.Println("REGISTERING RECONCILERS...")
-	for _, rec := range reconcilers {
-		ctrl.RegisterReconcilers(rec)
-	}
-
-	var reconcilerNames []string
-	for _, rec := range reconcilers {
-		reconcilerNames = append(reconcilerNames, string(rec.Resource()))
-	}
-	fmt.Printf("Available Reconcilers: %s\n", strings.Join(reconcilerNames, ", "))
+	fmt.Printf("Available Components: %s\n", strings.Join(names, ", "))
 	fmt.Println("==========================")
 
 	return &startupCfg{
-		event:      event,
+		event:      ev,
 		controller: ctrl,
 		kube:       kube,
 		manager:    mgr,
 	}
 }
 
-func buildReconcilers(cfg *reconcilerCfg) (reconcilers []domain.Reconciler) {
-	// Create reconcilers
-	// Project
-	projReconciler := reconciler.NewProjectReconciler(cfg.projInformer, cfg.event)
-	reconcilers = append(reconcilers, projReconciler)
-
-	// ManagedNamespace
-	managedNsReconciler := reconciler.NewManagedNamespaceReconciler(cfg.kube, cfg.mnsInformer, cfg.event)
-	reconcilers = append(reconcilers, managedNsReconciler)
-
-	return reconcilers
-}
-
 func buildScheme() (*runtime.Scheme, error) {
-	// ── Add scheme ─────────────────────────────────────────────────────────────
-	// Register both built-in types and the CRD types.
-	// The scheme is needed by the CRD informer to decode API responses
-	// into typed Go structs (Example *Project).
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		logger.Error().Err(err).Msg("failed to add client-go scheme")
-		return nil, err
-	}
+    scheme := runtime.NewScheme()
 
-	// Add project
-	if err := projectTypev1.AddToScheme(scheme); err != nil {
-		logger.Error().Err(err).Msg("failed to add Project CRD scheme")
-		return nil, err
-	}
+    // 1. Register built-in Kubernetes types
+    metav1.AddToGroupVersion(scheme, metav1.SchemeGroupVersion)
 
-	// Add managedNs
-	if err := mnsTypev1.AddToScheme(scheme); err != nil {
-		logger.Error().Err(err).Msg("failed to add ManagedNamespace CRD scheme")
-		return nil, err
-	}
+    // 2. Register core Kubernetes types
+    if err := clientgoscheme.AddToScheme(scheme); err != nil {
+        return nil, err
+    }
 
-	return scheme, nil
+    // 3. Register your CRDs
+    if err := projectTypev1.AddToScheme(scheme); err != nil {
+        return nil, err
+    }
+    if err := mnsTypev1.AddToScheme(scheme); err != nil {
+        return nil, err
+    }
+
+    return scheme, nil
 }

@@ -30,30 +30,6 @@ type Controller struct {
 	crds        []CRDInfo
 }
 
-type CRDInfo struct {
-	Group   string
-	Version string
-	Kind    string
-	APIPath string
-}
-
-type ResourceRegistry struct {
-    entries map[domain.Resource]RegistryEntry
-}
-
-type RegistryEntry struct {
-    CRD       CRDInfo
-    Informer  informer.InformerComponents
-    Reconciler domain.Reconciler
-}
-
-
-func NewRegistry() *ResourceRegistry {
-    return &ResourceRegistry{
-        entries: make(map[domain.Resource]RegistryEntry),
-    }
-}
-
 func NewController(
 	kube *kubeclient.Kubeclient,
 	registry *ResourceRegistry,
@@ -62,22 +38,21 @@ func NewController(
 	workers int,
 ) *Controller {
 	c := &Controller{
-		kube:      kube,
-		event:     event,
-		q:         q,
-		workers:   workers,
+		kube:    kube,
+		event:   event,
+		q:       q,
+		workers: workers,
 	}
 
 	// Load registry entries
-    for _, entry := range registry.entries {
-        c.informers = append(c.informers, entry.Informer)
-        c.reconcilers = append(c.reconcilers, entry.Reconciler)
-        c.crds = append(c.crds, entry.CRD)
-    }
+	for _, entry := range registry.entries {
+		c.informers = append(c.informers, entry.Informer)
+		c.reconcilers = append(c.reconcilers, entry.Reconciler)
+		c.crds = append(c.crds, entry.CRD)
+	}
 
 	return c
 }
-
 
 func (c *Controller) Start(ctx context.Context) error {
 	// CRD check (you may later generalize this per-CRD)
@@ -177,19 +152,6 @@ func (c *Controller) RegisterInformer(i informer.InformerComponents) {
 func (c *Controller) RegisterCRD(info CRDInfo) {
 	c.crds = append(c.crds, info)
 	logger.Info().Msgf("%s/%s crd added", info.Group, info.Version)
-}
-
-func (r *ResourceRegistry) Register(
-    resource domain.Resource,
-    crd CRDInfo,
-    inf informer.InformerComponents,
-    rec domain.Reconciler,
-) {
-    r.entries[resource] = RegistryEntry{
-        CRD:        crd,
-        Informer:   inf,
-        Reconciler: rec,
-    }
 }
 
 // Shutdown gracefully stops the Controller
