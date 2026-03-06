@@ -31,7 +31,7 @@ func (p *managednsClient) List(ctx context.Context, opts metav1.ListOptions) (*m
 	err := p.restClient.
 		Get().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("managednamespaces").
 		VersionedParams(&opts, p.parameterCodec).
 		Do(ctx).
 		Into(&result)
@@ -44,7 +44,7 @@ func (p *managednsClient) Get(ctx context.Context, name string, opts metav1.GetO
 	err := p.restClient.
 		Get().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("managednamespaces").
 		Name(name).
 		VersionedParams(&opts, p.parameterCodec).
 		Do(ctx).
@@ -58,7 +58,7 @@ func (p *managednsClient) Create(ctx context.Context, mns *managednsTypeV1.Manag
 	err := p.restClient.
 		Post().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("managednamespaces").
 		Body(mns).
 		Do(ctx).
 		Into(&result)
@@ -71,7 +71,7 @@ func (p *managednsClient) Watch(ctx context.Context, opts metav1.ListOptions) (w
 	return p.restClient.
 		Get().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("managednamespaces").
 		VersionedParams(&opts, p.parameterCodec).
 		Watch(ctx)
 }

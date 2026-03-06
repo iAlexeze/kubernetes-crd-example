@@ -32,7 +32,7 @@ func (p *projectClient) List(ctx context.Context, opts metav1.ListOptions) (*pro
 	err := p.restClient.
 		Get().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("projects").
 		VersionedParams(&opts, p.parameterCodec).
 		Do(ctx).
 		Into(&result)
@@ -47,7 +47,7 @@ func (p *projectClient) Get(ctx context.Context, name string, opts metav1.GetOpt
 	err := p.restClient.
 		Get().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("projects").
 		Name(name).
 		VersionedParams(&opts, p.parameterCodec).
 		Do(ctx).
@@ -61,7 +61,7 @@ func (p *projectClient) Create(ctx context.Context, project *projectTypev1.Proje
 	err := p.restClient.
 		Post().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("projects").
 		Body(project).
 		Do(ctx).
 		Into(&result)
@@ -74,7 +74,7 @@ func (p *projectClient) Watch(ctx context.Context, opts metav1.ListOptions) (wat
 	return p.restClient.
 		Get().
 		Namespace(p.Namespace()).
-		Resource(p.Name()).
+		Resource("projects").
 		VersionedParams(&opts, p.parameterCodec).
 		Watch(ctx)
 }

@@ -2,7 +2,6 @@ package informer
 
 import (
 	"context"
-	"time"
 
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
@@ -20,17 +19,16 @@ type InformerComponents interface {
 // NewProjectInformer() returns a new ProjectInformer
 func NewProjectInformer(
 	client domain.ProjectsV1Alpha1nterface,
-	queue *queue.Workqueue,
-	namespace string,
-	resync time.Duration,
+	wq *queue.Workqueue,
+	opts Options,
 ) *ProjectInformer {
 	return &ProjectInformer{
 		client: client,
 		Informer: Informer{
 			name:      string(domain.ProjectInformerResource),
-			namespace: namespace,
-			queue:     *queue,
-			resync:    resync,
+			queue:     wq,
+			namespace: opts.Namespace,
+			resync:    opts.Resync,
 		},
 	}
 }
@@ -38,17 +36,16 @@ func NewProjectInformer(
 // NewManagedNamespaceInformer() returns a new anagedNamespaceInformer informer
 func NewManagedNamespaceInformer(
 	client domain.ManagedNamespaceV1Alpha1nterface,
-	queue *queue.Workqueue,
-	namespace string,
-	resync time.Duration,
+	wq *queue.Workqueue,
+	opts Options,
 ) *ManagedNamespaceInformer {
 	return &ManagedNamespaceInformer{
 		client: client,
 		Informer: Informer{
 			name:      string(domain.ManagedNamespaceInformerResource),
-			namespace: namespace,
-			queue:     *queue,
-			resync:    resync,
+			queue:     wq,
+			namespace: opts.Namespace,
+			resync:    opts.Resync,
 		},
 	}
 }

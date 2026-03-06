@@ -19,13 +19,13 @@ type projectClient struct {
 	name           string
 	scheme         *runtime.Scheme
 	parameterCodec runtime.ParameterCodec
-	opts Options
+	opts           Options
 }
 
 type Options struct {
-	Group string
-	Version string
-	APIPath string
+	Group     string
+	Version   string
+	APIPath   string
 	Namespace string
 }
 
@@ -38,6 +38,7 @@ func NewProjectClient(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, opts 
 		name:           string(domain.ProjectResource),
 		kube:           kube,
 		scheme:         scheme,
+		opts:           opts,
 		parameterCodec: runtime.NewParameterCodec(scheme), // create a parameterCodec from scheme
 	}
 }
@@ -58,14 +59,15 @@ func (p *projectClient) Start(ctx context.Context) error {
 	// Build restclient
 	cfg := rest.CopyConfig(p.kube.RestConfig())
 	cfg.GroupVersion = &schema.GroupVersion{
-		Group: p.opts.Group, 
+		Group:   p.opts.Group,
 		Version: p.opts.Version,
 	}
 
 	cfg.APIPath = p.opts.APIPath
 	cfg.NegotiatedSerializer = serializer.NewCodecFactory(p.scheme)
-	p.restClient, _ = rest.RESTClientFor(cfg)
+	cfg.UserAgent = rest.DefaultKubernetesUserAgent()
 
+	p.restClient, _ = rest.RESTClientFor(cfg)
 	return nil
 }
 

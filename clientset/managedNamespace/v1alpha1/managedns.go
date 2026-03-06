@@ -19,17 +19,16 @@ type managednsClient struct {
 	name           string
 	scheme         *runtime.Scheme
 	parameterCodec runtime.ParameterCodec
-	opts Options
+	opts           Options
 }
 
 var _ domain.ManagedNamespaceInterface = (*managednsClient)(nil)
 var _ domain.Component = (*managednsClient)(nil)
 
-
 type Options struct {
-	Group string
-	Version string
-	APIPath string
+	Group     string
+	Version   string
+	APIPath   string
 	Namespace string
 }
 
@@ -39,6 +38,7 @@ func NewManagednsClient(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, opt
 		name:           string(domain.ManagedNamespaceResource),
 		kube:           kube,
 		scheme:         scheme,
+		opts:           opts,
 		parameterCodec: runtime.NewParameterCodec(scheme), // create a parameterCodec from scheme
 	}
 }
@@ -59,12 +59,14 @@ func (m *managednsClient) Start(ctx context.Context) error {
 	// Build restclient
 	cfg := rest.CopyConfig(m.kube.RestConfig())
 	cfg.GroupVersion = &schema.GroupVersion{
-		Group: m.opts.Group, 
+		Group:   m.opts.Group,
 		Version: m.opts.Version,
 	}
 
 	cfg.APIPath = m.opts.APIPath
 	cfg.NegotiatedSerializer = serializer.NewCodecFactory(m.scheme)
+	cfg.UserAgent = rest.DefaultKubernetesUserAgent()
+
 	m.restClient, _ = rest.RESTClientFor(cfg)
 
 	return nil

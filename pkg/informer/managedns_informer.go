@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -56,14 +57,10 @@ func (m *ManagedNamespaceInformer) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *ManagedNamespaceInformer) Controller() cache.Controller {
-	return m.controller
-}
+func (m *ManagedNamespaceInformer) Controller() cache.Controller { return m.controller }
 
-func (m *ManagedNamespaceInformer) Store() cache.Store {
-	return m.store
-}
+func (m *ManagedNamespaceInformer) Store() cache.Store { return m.store }
 
-func (m *ManagedNamespaceInformer) Name() string {
-	return m.name
-}
+func (m *ManagedNamespaceInformer) Name() string { return m.name }
+
+func (m *ManagedNamespaceInformer) RestClient() rest.Interface { return m.client.RestClient() }

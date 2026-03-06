@@ -2,12 +2,14 @@ package informer
 
 import (
 	"context"
+
 	projectTypeV1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -55,14 +57,10 @@ func (p *ProjectInformer) Start(ctx context.Context) error {
 	return nil
 }
 
-func (p *ProjectInformer) Controller() cache.Controller {
-	return p.controller
-}
+func (p *ProjectInformer) Controller() cache.Controller { return p.controller }
 
-func (p *ProjectInformer) Store() cache.Store {
-	return p.store
-}
+func (p *ProjectInformer) Store() cache.Store { return p.store }
 
-func (p *ProjectInformer) Name() string {
-	return p.name
-}
+func (p *ProjectInformer) Name() string { return p.name }
+
+func (p *ProjectInformer) RestClient() rest.Interface { return p.client.RestClient() }

@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	platformv1alpha1 "github.com/ialexeze/kube-controller/api/v1alpha1"
+	mnsTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 func (r *ManagedNamespaceReconciler) patchStatus(
-	ctx context.Context, mn *platformv1alpha1.ManagedNamespace,
+	ctx context.Context, mn *mnsTypev1.ManagedNamespace,
 ) error {
 	body, err := json.Marshal(map[string]interface{}{
 		"status": map[string]interface{}{
@@ -24,7 +24,7 @@ func (r *ManagedNamespaceReconciler) patchStatus(
 	}
 
 	return r.informer.RestClient().Patch(types.MergePatchType).
-		Resource(platformv1alpha1.NamePlural). // ← must match spec.names.plural in the CRD YAML
+		Resource(mnsTypev1.NamePlural). // ← must match spec.names.plural in the CRD YAML
 		Name(mn.Name).
 		SubResource("status"). // ← /status endpoint, not the main object
 		Body(body).
@@ -34,8 +34,8 @@ func (r *ManagedNamespaceReconciler) patchStatus(
 
 // Helper to set conditions
 func (r *ManagedNamespaceReconciler) setCondition(
-	mn *platformv1alpha1.ManagedNamespace,
-	conditionType platformv1alpha1.ManagedNamespaceConditionType,
+	mn *mnsTypev1.ManagedNamespace,
+	conditionType mnsTypev1.ManagedNamespaceConditionType,
 	status metav1.ConditionStatus,
 	reason string,
 	message string,

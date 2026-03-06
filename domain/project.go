@@ -6,6 +6,7 @@ import (
 	projectv1alpha1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 )
 
 type ProjectInterface interface {
@@ -20,4 +21,5 @@ type ProjectInterface interface {
 type ProjectsV1Alpha1nterface interface {
 	Projects(namespace string) ProjectInterface
 	Namespace() string
+	RestClient() rest.Interface
 }

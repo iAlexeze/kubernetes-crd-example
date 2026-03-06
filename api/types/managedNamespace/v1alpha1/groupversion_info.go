@@ -1,9 +1,10 @@
-// File: api/v1alpha1/groupversion_info.go
+// // File: api/v1alpha1/groupversion_info.go
 package v1alpha1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
 type ManagedNamespaceConditionType string
@@ -36,13 +37,29 @@ var (
 	NamePlural = "managednamespaces"
 
 	// SchemeBuilder is used to add Go types to the GroupVersionKind scheme
-	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
 	// AddToScheme adds all types in this package to the scheme
 	AddToScheme = SchemeBuilder.AddToScheme
 )
 
-// register known types
-func init() {
-	SchemeBuilder.Register(&ManagedNamespace{}, &ManagedNamespaceList{})
+// Add known types
+func addKnownTypes(scheme *runtime.Scheme) error {
+	// External version
+	scheme.AddKnownTypes(GroupVersion,
+		&ManagedNamespace{},
+		&ManagedNamespaceList{},
+	)
+
+	// Internal version (required for watch decoding)
+	scheme.AddKnownTypes(schema.GroupVersion{
+		Group:   Group,
+		Version: runtime.APIVersionInternal,
+	},
+		&ManagedNamespace{},
+		&ManagedNamespaceList{},
+	)
+
+	metav1.AddToGroupVersion(scheme, GroupVersion)
+	return nil
 }

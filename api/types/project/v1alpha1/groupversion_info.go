@@ -29,8 +29,19 @@ var (
 	AddToScheme   = SchemeBuilder.AddToScheme
 )
 
+// Add known types
 func addKnownTypes(scheme *runtime.Scheme) error {
+	// External version
 	scheme.AddKnownTypes(GroupVersion,
+		&Project{},
+		&ProjectList{},
+	)
+
+	// Internal version (required for watch decoding)
+	scheme.AddKnownTypes(schema.GroupVersion{
+		Group:   Group,
+		Version: runtime.APIVersionInternal,
+	},
 		&Project{},
 		&ProjectList{},
 	)

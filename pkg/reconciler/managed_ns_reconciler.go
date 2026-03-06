@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	managednsv1alpha "github.com/ialexeze/kube-controller/api/v1alpha1"
+	mnsTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/informer"
@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	// "k8s.io/client-go/tools/cache"
 )
 
 type ManagedNamespaceReconciler struct {
@@ -67,9 +66,9 @@ func (r *ManagedNamespaceReconciler) Reconcile(ctx context.Context, key string) 
 	}
 
 	// Type assert to ManagedNamespace
-	mnRaw, ok := obj.(*managednsv1alpha.ManagedNamespace)
+	mnRaw, ok := obj.(*mnsTypev1.ManagedNamespace)
 	if !ok {
-		return fmt.Errorf("expected *managednsv1alpha.ManagedNamespace, got %T", obj)
+		return fmt.Errorf("expected *mnsTypev1.ManagedNamespace, got %T", obj)
 	}
 
 	// Always work on a deep copy — never mutate the cached object
@@ -80,19 +79,19 @@ func (r *ManagedNamespaceReconciler) Reconcile(ctx context.Context, key string) 
 
 	// Set condition even in error
 	if reconcileErr != nil {
-		mn.Status.Phase = string(managednsv1alpha.Failed)
+		mn.Status.Phase = string(mnsTypev1.Failed)
 		r.setCondition(
 			mn,
-			managednsv1alpha.Error,
+			mnsTypev1.Error,
 			metav1.ConditionFalse,
 			"ReconcileError",
 			reconcileErr.Error(),
 		)
 	} else {
-		mn.Status.Phase = string(managednsv1alpha.Active)
+		mn.Status.Phase = string(mnsTypev1.Active)
 		r.setCondition(
 			mn,
-			managednsv1alpha.Ready,
+			mnsTypev1.Ready,
 			metav1.ConditionTrue,
 			"Reconciled",
 			"All resources reconciled successfully",
@@ -139,7 +138,7 @@ func (r *ManagedNamespaceReconciler) Reconcile(ctx context.Context, key string) 
 
 // reconcileNamespace ensures a Namespace exists with the correct labels.
 // Idempotent — safe to call on every reconcile.
-func (r *ManagedNamespaceReconciler) reconcileNamespace(ctx context.Context, mn *managednsv1alpha.ManagedNamespace) error {
+func (r *ManagedNamespaceReconciler) reconcileNamespace(ctx context.Context, mn *mnsTypev1.ManagedNamespace) error {
 	// Check if name exists
 	if mn.Name == "" {
 		return fmt.Errorf("ManagedNamespace name is empty")
@@ -168,7 +167,7 @@ func (r *ManagedNamespaceReconciler) reconcileNamespace(ctx context.Context, mn 
 				// this works correctly.
 				OwnerReferences: []metav1.OwnerReference{
 					{
-						APIVersion: managednsv1alpha.GroupVersion.String(),
+						APIVersion: mnsTypev1.GroupVersion.String(),
 						Kind:       "ManagedNamespace",
 						Name:       mn.Name,
 						UID:        mn.UID,

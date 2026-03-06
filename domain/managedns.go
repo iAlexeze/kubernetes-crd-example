@@ -6,6 +6,7 @@ import (
 	managednsv1alpha "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 )
 
 type ManagedNamespaceInterface interface {
@@ -20,4 +21,5 @@ type ManagedNamespaceInterface interface {
 type ManagedNamespaceV1Alpha1nterface interface {
 	ManagedNamespaces(namespace string) ManagedNamespaceInterface
 	Namespace() string
+	RestClient() rest.Interface
 }

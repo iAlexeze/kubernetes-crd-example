@@ -13,8 +13,8 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/reconciler"
-	"k8s.io/apimachinery/pkg/runtime"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	mnsTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
 	projectTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
@@ -47,8 +47,8 @@ func buildManager(cfg *config.Config) *startupCfg {
 	// kube
 	kube := kubeclient.NewKubeclient(kubeclient.Options{
 		Kubeconfig: cfg.Cluster().KubeconfigPath,
-		Masterurl: cfg.Cluster().MasterURL,
-		Scheme: scheme,
+		Masterurl:  cfg.Cluster().MasterURL,
+		Scheme:     scheme,
 	})
 	components = append(components, kube)
 
@@ -58,17 +58,17 @@ func buildManager(cfg *config.Config) *startupCfg {
 
 	// clients
 	projectsClient := projectsClientV1alpha1.NewProjectClient(kube, scheme, projectsClientV1alpha1.Options{
-		Group: projectTypev1.Group,
-		Version: projectTypev1.Version,
-		APIPath: projectTypev1.APIPath,
+		Group:     projectTypev1.Group,
+		Version:   projectTypev1.Version,
+		APIPath:   projectTypev1.APIPath,
 		Namespace: cfg.Cluster().Namespace,
 	})
 	components = append(components, projectsClient)
 
 	managedNamespaceClient := mnsClientV1alpha1.NewManagednsClient(kube, scheme, mnsClientV1alpha1.Options{
-		Group: mnsTypev1.Group,
-		Version: mnsTypev1.Version,
-		APIPath: mnsTypev1.APIPath,
+		Group:     mnsTypev1.Group,
+		Version:   mnsTypev1.Version,
+		APIPath:   mnsTypev1.APIPath,
 		Namespace: cfg.Cluster().Namespace,
 	})
 	components = append(components, managedNamespaceClient)
@@ -77,16 +77,20 @@ func buildManager(cfg *config.Config) *startupCfg {
 	projInformer := informer.NewProjectInformer(
 		projectsClient,
 		wq,
-		cfg.Cluster().Namespace,
-		cfg.Cluster().DefaultResync,
+		informer.Options{
+			Namespace: cfg.Cluster().Namespace,
+			Resync:    cfg.Cluster().DefaultResync,
+		},
 	)
 	components = append(components, projInformer)
 
 	mnsInformer := informer.NewManagedNamespaceInformer(
 		managedNamespaceClient,
 		wq,
-		cfg.Cluster().Namespace,
-		cfg.Cluster().DefaultResync,
+		informer.Options{
+			Namespace: cfg.Cluster().Namespace,
+			Resync:    cfg.Cluster().DefaultResync,
+		},
 	)
 	components = append(components, mnsInformer)
 
@@ -158,23 +162,23 @@ func buildManager(cfg *config.Config) *startupCfg {
 }
 
 func buildScheme() (*runtime.Scheme, error) {
-    scheme := runtime.NewScheme()
+	scheme := runtime.NewScheme()
 
-    // 1. Register built-in Kubernetes types
-    metav1.AddToGroupVersion(scheme, metav1.SchemeGroupVersion)
+	// 1. Register built-in Kubernetes types
+	metav1.AddToGroupVersion(scheme, metav1.SchemeGroupVersion)
 
-    // 2. Register core Kubernetes types
-    if err := clientgoscheme.AddToScheme(scheme); err != nil {
-        return nil, err
-    }
+	// 2. Register core Kubernetes types
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
 
-    // 3. Register your CRDs
-    if err := projectTypev1.AddToScheme(scheme); err != nil {
-        return nil, err
-    }
-    if err := mnsTypev1.AddToScheme(scheme); err != nil {
-        return nil, err
-    }
+	// 3. Register your CRDs
+	if err := projectTypev1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := mnsTypev1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
 
-    return scheme, nil
+	return scheme, nil
 }
