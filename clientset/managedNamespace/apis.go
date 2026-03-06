@@ -3,16 +3,16 @@ package v1alpha1
 import (
 	"context"
 
-	projectTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
+	managednsTypeV1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
-// Projects implements the project interface
-func (p *projectClient) Projects(namespace string) domain.ProjectInterface {
-	return &projectClient{
+// ManagedNamespaces implements the ManagedNamespace interface
+func (p *managednsClient) ManagedNamespaces(namespace string) domain.ManagedNamespaceInterface {
+	return &managednsClient{
 		name:           string(domain.ProjectResource),
 		restClient:     p.restClient,
 		namespace:      namespace,
@@ -22,13 +22,12 @@ func (p *projectClient) Projects(namespace string) domain.ProjectInterface {
 }
 
 // API Functions
-func (p *projectClient) List(ctx context.Context, opts metav1.ListOptions) (*projectTypev1.ProjectList, error) {
+func (p *managednsClient) List(ctx context.Context, opts metav1.ListOptions) (*managednsTypeV1.ManagedNamespaceList, error) {
 	if p.restClient == nil {
 		logger.Fatal().Msg("restClient is nil - check client initialization")
 	}
 
-	result := projectTypev1.ProjectList{}
-	logger.Debug().Msgf("(BEFORE) projects: %v", len(result.Items))
+	result := managednsTypeV1.ManagedNamespaceList{}
 	err := p.restClient.
 		Get().
 		Namespace(p.Namespace()).
@@ -37,13 +36,11 @@ func (p *projectClient) List(ctx context.Context, opts metav1.ListOptions) (*pro
 		Do(ctx).
 		Into(&result)
 
-	logger.Debug().Msgf("(AFTER) projects: %v", len(result.Items))
-
 	return &result, err
 }
 
-func (p *projectClient) Get(ctx context.Context, name string, opts metav1.GetOptions) (*projectTypev1.Project, error) {
-	result := projectTypev1.Project{}
+func (p *managednsClient) Get(ctx context.Context, name string, opts metav1.GetOptions) (*managednsTypeV1.ManagedNamespace, error) {
+	result := managednsTypeV1.ManagedNamespace{}
 	err := p.restClient.
 		Get().
 		Namespace(p.Namespace()).
@@ -56,20 +53,20 @@ func (p *projectClient) Get(ctx context.Context, name string, opts metav1.GetOpt
 	return &result, err
 }
 
-func (p *projectClient) Create(ctx context.Context, project *projectTypev1.Project) (*projectTypev1.Project, error) {
-	result := projectTypev1.Project{}
+func (p *managednsClient) Create(ctx context.Context, mns *managednsTypeV1.ManagedNamespace) (*managednsTypeV1.ManagedNamespace, error) {
+	result := managednsTypeV1.ManagedNamespace{}
 	err := p.restClient.
 		Post().
 		Namespace(p.Namespace()).
 		Resource(p.Name()).
-		Body(project).
+		Body(mns).
 		Do(ctx).
 		Into(&result)
 
 	return &result, err
 }
 
-func (p *projectClient) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+func (p *managednsClient) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return p.restClient.
 		Get().

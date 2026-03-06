@@ -1,3 +1,4 @@
+// Written without controller-gen
 package v1alpha1
 
 import (
@@ -6,23 +7,34 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const GroupName = "crd-example.ialexeze.ai"
-const GroupVersion = "v1alpha1"
-const GroupKind = "Project"
-
-var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: GroupVersion}
+const (
+	Group   = "platform.ialexeze.io"
+	Version = "v1alpha1"
+	Kind    = "Project"
+)
 
 var (
+	GroupVersion = schema.GroupVersion{
+		Group:   Group,
+		Version: Version,
+	}
+
+	// API PATH
+	ApiPath = "/apis"
+
+	// spec.names.plural
+	NamePlural = "projects"
+
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	AddToScheme   = SchemeBuilder.AddToScheme
 )
 
 func addKnownTypes(scheme *runtime.Scheme) error {
-	scheme.AddKnownTypes(SchemeGroupVersion,
+	scheme.AddKnownTypes(GroupVersion,
 		&Project{},
 		&ProjectList{},
 	)
 
-	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
+	metav1.AddToGroupVersion(scheme, GroupVersion)
 	return nil
 }

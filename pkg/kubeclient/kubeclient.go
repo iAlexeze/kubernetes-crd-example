@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	projectTypeV1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,6 +29,10 @@ type Options struct {
 	Kubeconfig string
 	Masterurl  string
 	Scheme     *runtime.Scheme
+	Group      string
+	Kind       string
+	Version    string
+	APIPath    string
 }
 
 var _ domain.Component = (*Kubeclient)(nil)
@@ -92,11 +95,15 @@ func (k *Kubeclient) buildRestClient() (*rest.RESTClient, error) {
 	config := *k.restConfig
 
 	config.ContentConfig.GroupVersion = &schema.GroupVersion{
-		Group:   projectTypeV1.GroupName,
-		Version: projectTypeV1.GroupVersion,
+		Group:   k.Opts.Group,
+		Version: k.Opts.Version,
 	}
 
-	config.APIPath = "/apis"
+	if k.Opts.APIPath == "" {
+		k.Opts.APIPath = "/apis"
+	}
+
+	config.APIPath = k.Opts.APIPath
 	config.NegotiatedSerializer = serializer.NewCodecFactory(k.Opts.Scheme).WithoutConversion()
 	config.UserAgent = rest.DefaultKubernetesUserAgent()
 

@@ -137,10 +137,13 @@ cp .env.example .env
 vim .env
 ```
 
-### 3. Install CRD
+### 3. Install CRDs
 ```bash
-kubectl apply -f crd-config/crd.yaml
+kubectl apply -f crd/bases/
 ```
+
+-  `platform.ialexeze.io_project.yaml` - 
+-  `platform.ialexeze.io_managednamespaces.yaml` -
 
 ### 4. Run Locally
 ```bash
@@ -153,11 +156,14 @@ go run ./cmd/
 
 > **⚠️ Important**: Ensure your current kubectl context is set to the same namespace as configured in `NAMESPACE` env variable. The controller will only watch resources in this namespace.
 
-### 5. Create Project Resources
+### 5. Create CRD Resources (Project, ManagedNamespace)
 ```bash
 # In another terminal
-kubectl apply -f crd-config/project.yaml
+kubectl apply -f crd/samples
 ```
+
+- `platform_v1alpha1_managednamespace.yaml` - 
+- `platform_v1alpha1_project.yaml` -
 
 ### 6. Deploy the Project Controller with RBAC
 ```bash
@@ -250,7 +256,7 @@ The controller automatically loads `.env` files using `godotenv`. In production,
 ### Project CRD
 
 ```yaml
-apiVersion: crd-example.ialexeze.ai/v1alpha1
+apiVersion: platform.ialexeze.io/v1alpha1
 kind: Project
 metadata:
   name: example-project
@@ -541,7 +547,7 @@ kubectl apply -f deployment/service.yaml  # optional
 kubectl logs -f deployment/project-controller
 
 # Verify CRD exists
-kubectl get crd projects.crd-example.ialexeze.ai
+kubectl get crd projects.platform.ialexeze.io
 
 # Check leader lease
 kubectl get leases -n your-namespace

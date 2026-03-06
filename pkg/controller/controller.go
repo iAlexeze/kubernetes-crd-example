@@ -3,15 +3,15 @@ package controller
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
-	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/events"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/informer"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -19,30 +19,32 @@ import (
 )
 
 type Controller struct {
-	kube     *kubeclient.Kubeclient
-	informer *informer.Informer
-	events   *events.Recorder
-	queue    workqueue.TypedRateLimitingInterface[string]
-	wg       sync.WaitGroup
-	workers  int
-	opts     CustomOptions
+	kube        *kubeclient.Kubeclient
+	informers   []informer.InformerComponents
+	event       *event.Event
+	queue       workqueue.TypedRateLimitingInterface[queue.QueueItem]
+	wg          sync.WaitGroup
+	workers     int
+	reconcilers []domain.Reconciler
+	opts        CustomOptions
 }
 
 var _ domain.Component = (*Controller)(nil)
 
 func NewController(
 	kube *kubeclient.Kubeclient,
-	informer *informer.Informer,
-	events *events.Recorder,
+	informers []informer.InformerComponents,
+	event *event.Event,
+	queue *queue.Queue,
 	workers int,
 	opts CustomOptions,
 ) *Controller {
 	return &Controller{
-		kube:     kube,
-		informer: informer,
-		events:   events,
-		workers:  workers,
-		opts:     opts,
+		kube:      kube,
+		informers: informers,
+		event:     event,
+		workers:   workers,
+		opts:      opts,
 	}
 }
 
@@ -63,17 +65,8 @@ func (c *Controller) Start(ctx context.Context) error {
 			"Version": c.opts.Version,
 		}
 
-		var missing []string
-		for k, v := range required {
-			if v == "" {
-				missing = append(missing, k)
-			}
-		}
-
-		if len(missing) > 0 {
-			err := fmt.Sprintf("missing required parameter(s): %s", strings.Join(missing, ", "))
-			logger.Error().Msgf("%s", err)
-			return fmt.Errorf("%s", err)
+		if err := utils.RequireStrParams(required); err != nil {
+			return err
 		}
 
 		// Try with backoff
@@ -98,18 +91,14 @@ func (c *Controller) Start(ctx context.Context) error {
 			Msgf("Found %s CRD: %s/%s...", c.opts.Kind, c.opts.Group, c.opts.Version)
 	}
 
-	informer := c.informer
-
 	if informer == nil {
 		return fmt.Errorf("controller error: informer not initialized")
 	}
 
-	// instantiate queue
-	c.queue = informer.Queue()
 	ctrl := informer.Controller()
 
-	// Start the controller (Controller)
-	logger.Debug().Msg("starting Controller controller...")
+	// Start the Controller
+	logger.Debug().Msg("starting controller...")
 	go ctrl.Run(wait.NeverStop)
 
 	// Wait for cache to sync
@@ -122,7 +111,7 @@ func (c *Controller) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *Controller) Run(ctx context.Context) {
+func (c *Controller) RunOrDie(ctx context.Context) {
 	logger.Info().Msgf("starting %d workers", c.workers)
 
 	// Start workers
@@ -130,7 +119,11 @@ func (c *Controller) Run(ctx context.Context) {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
-			wait.UntilWithContext(ctx, c.runWorker, time.Second)
+			wait.UntilWithContext(
+				ctx,
+				func(ctx context.Context) {
+					c.runWorker(ctx)
+				}, time.Second)
 		}()
 	}
 
@@ -146,6 +139,18 @@ func (c *Controller) Run(ctx context.Context) {
 	c.wg.Wait()
 
 	logger.Info().Msg("controller drained and stopped")
+}
+
+// RegisterReconcilers registers all reconcilers to controller
+func (c *Controller) RegisterReconcilers(r domain.Reconciler) {
+	c.reconcilers = append(c.reconcilers, r)
+	logger.Info().Msgf("%s reconciler egistered", r.Resource())
+}
+
+// RegisterReconcilers registers all reconcilers to controller
+func (c *Controller) AddInformer(i *informer.Informer) {
+	c.informers = append(c.informers, i)
+	logger.Info().Msgf("%s informer added", i.Name())
 }
 
 // Shutdown gracefully stops the Controller

@@ -1,55 +1,55 @@
-package controller
+package reconciler
 
 import (
 	"context"
 	"fmt"
 
 	projectTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/informer"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
-// runWorker is a long-running function that processes items from the queue
-func (c *Controller) runWorker(ctx context.Context) {
-	for c.processNextItem(ctx) {
+type ProjectReconciler struct {
+	informer informer.InformerComponents
+	event    *event.Event
+}
+
+func NewProjectReconciler(
+	informer informer.InformerComponents,
+	event *event.Event,
+) *ProjectReconciler {
+	return &ProjectReconciler{
+		informer: informer,
+		event:    event,
 	}
 }
 
-// processNextItem processes one item from the queue
-func (c *Controller) processNextItem(ctx context.Context) bool {
-	// Wait until there's an item or the queue is shut down
-	key, shutdown := c.queue.Get()
-	if shutdown {
-		return false
-	}
+var _ domain.Reconciler = (*ProjectReconciler)(nil)
 
-	// We call Done at the end of this function to mark the item as processed
-	defer c.queue.Done(key)
+func (r *ProjectReconciler) ShutDown() {}
 
-	// Reconcile the item
-	err := c.reconcile(ctx, key)
-	if err != nil {
-		// Handle error: requeue with rate limiting
-		logger.Error().Err(err).Str("key", key).Msg("reconciliation failed")
-		c.queue.AddRateLimited(key)
-		return true
-	}
-
-	// Success: forget the item (remove from rate limiting history)
-	c.queue.Forget(key)
-	return true
+func (r *ProjectReconciler) Resource() domain.Resource {
+	return domain.ProjectResource
 }
+
+// TODO
+// func (r *ProjectReconciler) Informer() cache.Store {}
+
+// func (r *ProjectReconciler) Controller() cache.Controller {}
 
 // reconcile handles the actual business logic for a project
-func (c *Controller) reconcile(ctx context.Context, key string) error {
+func (r *ProjectReconciler) Reconcile(ctx context.Context, key string) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return fmt.Errorf("invalid key format: %w", err)
 	}
 
 	// Get the object from the store
-	obj, exists, err := c.informer.Store().GetByKey(key)
+	obj, exists, err := r.informer.Store().GetByKey(key)
 	if err != nil {
 		return fmt.Errorf("failed to get object from store: %w", err)
 	}
@@ -74,19 +74,19 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 	// Example: Check if project needs finalizer
 	if project.DeletionTimestamp != nil {
 		// Handle deletion
-		return c.handleDeletion(ctx, project)
+		return r.handleDeletion(ctx, project)
 	}
 
 	// Normal reconciliation
-	return c.reconcileNormal(ctx, project)
+	return r.reconcileNormal(ctx, project)
 }
 
-func (c *Controller) reconcileNormal(ctx context.Context, project *projectTypev1.Project) error {
+func (r *ProjectReconciler) reconcileNormal(ctx context.Context, project *projectTypev1.Project) error {
 	// Add your business logic here
-	// e.g., ensure dependent resources exist, update status, etc.
+	// e.g., ensure dependent resources exist, update status, etr.
 
-	if c.events.Recorder() != nil {
-		c.events.Recorder().Eventf(
+	if r.event.Recorder() != nil {
+		r.event.Recorder().Eventf(
 			project,
 			corev1.EventTypeNormal,
 			"ProjectReconciled",
@@ -97,14 +97,14 @@ func (c *Controller) reconcileNormal(ctx context.Context, project *projectTypev1
 	return nil
 }
 
-func (c *Controller) handleDeletion(ctx context.Context, project *projectTypev1.Project) error {
+func (r *ProjectReconciler) handleDeletion(ctx context.Context, project *projectTypev1.Project) error {
 	logger.Info().Msgf("Handling deletion for %s", project.Name)
 	// Add cleanup logic here
 	// e.g., delete external resources, remove finalizers
 
 	// Emit events
-	if c.events.Recorder() != nil {
-		c.events.Recorder().Eventf(
+	if r.event.Recorder() != nil {
+		r.event.Recorder().Eventf(
 			project,
 			corev1.EventTypeWarning,
 			"ProjectDelete",

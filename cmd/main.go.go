@@ -35,8 +35,8 @@ func main() {
 	startup.manager.AddPostStartHook(func(ctx context.Context) {
 		leader := leader.NewLeaderElection(
 			startup.kube,
-			startup.events,
-			func(ctx context.Context) { startup.controller.Run(ctx) }, // controller run
+			startup.event,
+			func(ctx context.Context) { startup.controller.RunOrDie(ctx) }, // controller run
 			leader.Options{
 				Namespace:     cfg.Cluster().Namespace,
 				LeaseDuration: cfg.Leader().LeaseDuration,

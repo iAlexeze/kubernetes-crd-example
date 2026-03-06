@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-type projectClient struct {
+type managednsClient struct {
 	restClient     rest.Interface
 	kube           *kubeclient.Kubeclient
 	namespace      string
@@ -18,13 +18,13 @@ type projectClient struct {
 	parameterCodec runtime.ParameterCodec
 }
 
-var _ domain.ProjectInterface = (*projectClient)(nil)
-var _ domain.Component = (*projectClient)(nil)
+var _ domain.ManagedNamespaceInterface = (*managednsClient)(nil)
+var _ domain.Component = (*managednsClient)(nil)
 
-func NewProjectClient(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, namespace string) *projectClient {
+func NewManagednsClient(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, namespace string) *managednsClient {
 
-	return &projectClient{
-		name:           string(domain.ProjectResource),
+	return &managednsClient{
+		name:           string(domain.ManagedNamespaceResource),
 		kube:           kube,
 		namespace:      namespace,
 		scheme:         scheme,
@@ -32,7 +32,7 @@ func NewProjectClient(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, names
 	}
 }
 
-func (p *projectClient) Start(ctx context.Context) error {
+func (p *managednsClient) Start(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -41,17 +41,17 @@ func (p *projectClient) Start(ctx context.Context) error {
 }
 
 // Just to fully implement the components interface
-func (c *projectClient) Shutdown(ctx context.Context) {}
+func (c *managednsClient) Shutdown(ctx context.Context) {}
 
 // Getters
-func (p *projectClient) Name() string {
+func (p *managednsClient) Name() string {
 	return p.name
 }
 
-func (p *projectClient) Namespace() string {
+func (p *managednsClient) Namespace() string {
 	return p.namespace
 }
 
-func (p *projectClient) RestClient() rest.Interface {
+func (p *managednsClient) RestClient() rest.Interface {
 	return p.restClient
 }
