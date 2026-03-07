@@ -160,7 +160,7 @@ func NewProjectInformer(client domain.ProjectClientInterface, wq *queue.Workqueu
     return &ProjectInformer{
         client: client,
         Informer: Informer{
-            name:      string(domain.ProjectResource),
+            name:      domain.ProjectResource.String(),
             queue:     wq,
             namespace: opts.Namespace,
             resync:    opts.Resync,

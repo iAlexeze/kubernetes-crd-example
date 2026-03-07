@@ -21,7 +21,7 @@ type Kubeclient struct {
 	dynamic    dynamic.Interface
 	scheme     *runtime.Scheme
 	Config     Config
-	Opts       Options
+	Info       CRDInfo
 }
 
 type Config struct {

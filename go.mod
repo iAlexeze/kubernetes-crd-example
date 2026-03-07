@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/ialexeze/kube-controller v0.0.0-20260228025638-5e562b1ec87e
 	github.com/rs/zerolog v1.34.0
 	k8s.io/apimachinery v0.35.2
 	k8s.io/client-go v0.35.2

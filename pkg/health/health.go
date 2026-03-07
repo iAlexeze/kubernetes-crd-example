@@ -21,7 +21,8 @@ type HealthServer struct {
 	cfg    *config.Config
 }
 
-func NewHealthServer(client string, cfg *config.Config) *HealthServer {
+func NewHealthServer(cfg *config.Config) *HealthServer {
+	client := cfg.App().Name
 	if client == "" {
 		client = "service"
 	}

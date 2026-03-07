@@ -12,7 +12,7 @@ import (
 // For controller queueing
 type QueueItem struct {
 	Key      string
-	Resource domain.Resource
+	Resource string
 }
 
 type Workqueue struct {
@@ -36,8 +36,8 @@ func (q *Workqueue) Enqueue(obj interface{}, resource domain.Resource) {
 		return
 	}
 
-	q.Queue.Add(QueueItem{Key: key, Resource: resource})
-	logger.Debug().Msgf("Enqueued: %s", key)
+	q.Queue.Add(QueueItem{Key: key, Resource: resource.String()})
+	logger.Debug().Msgf("Enqueued: %s, Resource: %s", key, resource)
 }
 
 // Methods

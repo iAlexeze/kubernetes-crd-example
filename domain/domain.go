@@ -2,8 +2,12 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"time"
-	// "k8s.io/client-go/tools/cache"
+
+	managednsv1alpha "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
+	projectv1alpha1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type Component interface {
@@ -30,6 +34,9 @@ type Reconciler interface {
 
 	// Resource() returns the resource name or kind for the reconciler
 	Resource() Resource
+
+	// GVK() returns the group/kind/version for the reconciler
+	GVK() GVK
 }
 
 // Define resource types
@@ -44,3 +51,34 @@ const (
 	ManagedNamespaceResource         Resource = "ManagedNamespace"
 	ManagedNamespaceInformerResource Resource = "ManagedNamespaceInformer"
 )
+
+func (r Resource) String() string {
+	return string(r)
+}
+
+func ResourceType(obj interface{}) Resource {
+	switch obj.(type) {
+	case *projectv1alpha1.Project:
+		return ProjectResource
+	case *managednsv1alpha.ManagedNamespace:
+		return ManagedNamespaceResource
+	default:
+		return "Unknown"
+	}
+
+}
+
+// Consistent Keys
+type GVK string
+
+func FromGVK(group, version, kind string) GVK {
+	return GVK(fmt.Sprintf("%s/%s/%s", group, version, kind))
+}
+
+func FromGVKObj(gvk schema.GroupVersionKind) string {
+	return FromGVK(gvk.Group, gvk.Version, gvk.Kind).String()
+}
+
+func (g GVK) String() string {
+	return string(g)
+}

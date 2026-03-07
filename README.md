@@ -221,7 +221,7 @@ cp .env.example .env
 
 ### 2. Install CRDs
 ```bash
-kubectl apply -f crd/bases/crd-project.yaml
+kubectl apply -f crd/config/bases/crd-project.yaml
 kubectl apply -f crd-config/crd-managedns.yaml
 ```
 
@@ -236,8 +236,8 @@ go run ./cmd/
 ### 4. Create Resources
 ```bash
 # Create projects and managed namespaces
-kubectl apply -f crd/samples/project.yaml
-kubectl apply -f crd/samples/managedns.yaml
+kubectl apply -f crd/config/samples/project.yaml
+kubectl apply -f crd/config/samples/managedns.yaml
 ```
 
 ### 5. Deploy to Production
@@ -343,48 +343,9 @@ type YourCRDV1Alpha1nterface interface {
 ```
 
 ### **Step 3: Create the Client**
+Goodnews: This is generated automatically! 😊
 
-```
-clientset/yourcrd/v1alpha1/
-├── apis.go
-└── yourcrd.go
-```
-
-**apis.go:**
-```go
-package v1alpha1
-
-import (
-    "context"
-    
-    "github.com/ialexeze/multi-crd-controller/pkg/config/domain"
-    "github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
-    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    "k8s.io/apimachinery/pkg/runtime"
-    "k8s.io/apimachinery/pkg/watch"
-    "k8s.io/client-go/rest"
-    
-    v1alpha1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/yourcrd/v1alpha1"
-)
-
-func (c *YourCRDClient) List(ctx context.Context, opts metav1.ListOptions) (*v1alpha1.YourCRDList, error) {
-    result := v1alpha1.YourCRDList{}
-    err := c.restClient.
-        Get().
-        Namespace(c.namespace).
-        Resource("yourcrd-plural-name").
-        VersionedParams(&opts, runtime.NewParameterCodec(c.scheme)).
-        Do(ctx).
-        Into(&result)
-    return &result, err
-}
-
-// Implement Get, Create, Update, Delete, Watch...
-```
-
-**your_crd.go:**
-
-> **NOTE**: _Add 'YourCRDResource' to [domain.go](./domain/domain.go). Useful for [queuing](./pkg/queue/queue.go) and identifying your crd with the controller._
+> **NOTE**: _Add 'YourCRDResource' to [domain.go](./domain/domain.go). Useful for [queuing](./pkg/queue/queue.go) and identifying your crd with the controller registry._
 
 ```go
 type YourCRDClient struct {
@@ -398,7 +359,7 @@ type YourCRDClient struct {
 
 func NewYourCRDClient(kube *kubeclient.Kubeclient, opts kubeclient.Options) *YourCRDClient {
     return &YourCRDClient{
-        name:           string(domain.YourCRDResource),
+        name:           domain.YourCRDResource.String(),
         kube:           kube,
         opts:           opts,
     }
@@ -431,40 +392,8 @@ func (c *YourCRDClient) RestClient() rest.Interface { return c.restClient }
 ```
 
 ### **Step 4: Create the Informer**
+Goodnews: This is generated automatically! 😊
 
-```
-pkg/informer/yourcrd_informer.go
-```
-
-```go
-package informer
-
-import (
-    "github.com/ialexeze/multi-crd-controller/pkg/config/domain"
-    "github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
-)
-
-type YourCRDInformer struct {
-    client domain.YourCRDClientInterface
-    Informer
-}
-
-func NewYourCRDInformer(
-    client domain.YourCRDClientInterface,
-    wq *queue.Workqueue,
-    opts Options,
-) *YourCRDInformer {
-    return &YourCRDInformer{
-        client: client,
-        Informer: Informer{
-            name:      string(domain.YourCRDInformerResource),
-            queue:     wq,
-            namespace: opts.Namespace,
-            resync:    opts.Resync,
-        },
-    }
-}
-```
 
 ### **Step 5: Create the Reconciler**
 
@@ -533,7 +462,7 @@ func (r *YourCRDReconciler) Reconcile(ctx context.Context, key string) error {
 
 ### **Step 6: Register in `build_manager.go`**
 
-Add these lines to your existing `cmd/build_manager.go`:
+Add these lines to your existing [cmd/build_scheme.go](./cmd/build_scheme.go):
 
 ```go
 // In buildScheme()
@@ -541,43 +470,30 @@ Add these lines to your existing `cmd/build_manager.go`:
 	if err := yourCRDTypev1.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
-
-// In buildManager()
-// 1. Create client
-yourcrdClient := yourcrdClientV1alpha1.NewYourCRDClient(kube, kubeclient.Options{
-    Group:     yourcrdTypev1.Group,
-    Version:   yourcrdTypev1.Version,
-    APIPath:   yourcrdTypev1.APIPath,
-})
-components = append(components, yourcrdClient)
-
-// 2. Create informer
-yourcrdInformer := informer.NewYourCRDInformer(
-    yourcrdClient,
-    wq,
-    informer.Options{
-        Namespace: cfg.Cluster().Namespace,
-        Resync:    cfg.Cluster().DefaultResync,
-    },
-)
-components = append(components, yourcrdInformer)
-
-// 3. Create reconciler
-yourcrdReconciler := reconciler.NewYourCRDReconciler(yourcrdInformer, ev)
-
-// 4. Register with registry
-reg.Register(
-    domain.YourCRDResource,
-    controller.CRDInfo{
-        Group:   yourcrdTypev1.Group,
-        Version: yourcrdTypev1.Version,
-        Kind:    yourcrdTypev1.Kind,
-        APIPath: yourcrdTypev1.APIPath,
-    },
-    yourcrdInformer,
-    yourcrdReconciler,
-)
 ```
+
+Add your new CRD to [cmd/build_crd.go](./cmd/build_crd.go):
+
+```go
+func buildCRDs(kube *kubeclient.Kubeclient) []crd {
+	return []crd{
+		NewCRD(
+			&projectTypev1.Project{},
+			&projectTypev1.ProjectList{},
+			kubeclient.CRDInfoFrom(
+				projectTypev1.Group,
+				projectTypev1.Version,
+				projectTypev1.Kind,
+				projectTypev1.APIPath,
+				projectTypev1.NamePlural,
+				false,
+			),
+        )
+    }
+}
+```
+
+This automatically registers your CRD to the controller manager.
 
 ### **Step 7: Done! 🎉**
 

@@ -9,33 +9,59 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-type Options struct {
-	Group        string               // Required if GroupVersion is not specified
-	Version      string               // Required if GroupVersion is not specified
-	GroupVersion *schema.GroupVersion // Optional (can be used if Group and Version are not specified)
-	APIPath      string
+type CRDInfo struct {
+	Kind             string                  // Required by Registry
+	Group            string                  // Required if GroupVersion is not specified
+	Version          string                  // Required if GroupVersion is not specified
+	GroupVersion     *schema.GroupVersion    // Optional (can be used if Group and Version are not specified)
+	GroupVersionKind schema.GroupVersionKind //	Useful for some manipulations
+	NamePlural       string
+	ClusterScoped    bool // Required for cluster-scoped resources
+	APIPath          string
+	Namespace        string
+}
+
+func CRDInfoFrom(group, version, kind, apiPath, plural string, clusterScoped bool) CRDInfo {
+	if apiPath == "" {
+		apiPath = "/apis"
+	}
+
+	if group == "" && version == "" && kind == "" {
+		panic("required variables: Group, Version")
+	}
+
+	return CRDInfo{
+		Group:            group,
+		Version:          version,
+		Kind:             kind,
+		GroupVersion:     &schema.GroupVersion{Group: group, Version: version},
+		GroupVersionKind: schema.GroupVersionKind{Group: group, Version: version, Kind: kind},
+		APIPath:          apiPath,
+		NamePlural:       plural,
+		ClusterScoped:    clusterScoped,
+	}
 }
 
 // SharedClientFactory provides a simple way to build clients from config
-func (k *Kubeclient) SharedClientFactory(opts Options) (*rest.RESTClient, error) {
+func (k *Kubeclient) SharedClientFactory(info CRDInfo) (*rest.RESTClient, error) {
 	switch {
-	case opts.APIPath == "":
-		opts.APIPath = "/apis"
-	case opts.GroupVersion == nil:
-		if opts.Group == "" && opts.Version == "" {
+	case info.APIPath == "":
+		info.APIPath = "/apis"
+	case info.GroupVersion == nil:
+		if info.Group == "" && info.Version == "" {
 			return nil, fmt.Errorf("required variables: Group, Version")
 		}
-		opts.GroupVersion = &schema.GroupVersion{
-			Group:   opts.Group,
-			Version: opts.Version,
+		info.GroupVersion = &schema.GroupVersion{
+			Group:   info.Group,
+			Version: info.Version,
 		}
 	}
 
 	// Build restclient
 	cfg := rest.CopyConfig(k.RestConfig())
-	cfg.GroupVersion = opts.GroupVersion
+	cfg.GroupVersion = info.GroupVersion
 
-	cfg.APIPath = opts.APIPath
+	cfg.APIPath = info.APIPath
 	cfg.NegotiatedSerializer = serializer.NewCodecFactory(k.Scheme())
 	cfg.UserAgent = rest.DefaultKubernetesUserAgent()
 

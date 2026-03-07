@@ -19,7 +19,7 @@ COPY . .
 # - ldflags to strip debug info and reduce size
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o bin/project-controller ./cmd
+    -o bin/multi-crd-controller ./cmd
 
 # ---- Final Stage ----
 FROM alpine:3.19
@@ -35,7 +35,7 @@ RUN addgroup -g 1000 -S appuser && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/bin/project-controller /app/project-controller
+COPY --from=builder /app/bin/multi-crd-controller /app/multi-crd-controller
 
 # Copy .env.example as reference (optional)
 COPY --from=builder /app/.env.example /app/.env.example
@@ -48,4 +48,4 @@ RUN mkdir -p /app/config && \
 USER appuser
 
 # Run the controller
-ENTRYPOINT ["/app/project-controller"]
+ENTRYPOINT ["/app/multi-crd-controller"]

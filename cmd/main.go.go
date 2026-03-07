@@ -22,7 +22,7 @@ func main() {
 	defer cancel()
 
 	// create domain components and build manager
-	startup := buildManager(cfg)
+	startup := buildManager(cfg, ctx)
 
 	// Start all manager components
 	go func() {

@@ -6,9 +6,15 @@ import (
 	"fmt"
 
 	mnsTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
+	// "k8s.io/apimachinery/pkg/types"
 )
+
+type NewReconcilerFunc func(inf cache.SharedIndexInformer, ev *event.Event) domain.Reconciler
 
 func (r *ManagedNamespaceReconciler) patchStatus(
 	ctx context.Context, mn *mnsTypev1.ManagedNamespace,
@@ -28,13 +34,15 @@ func (r *ManagedNamespaceReconciler) patchStatus(
 		return fmt.Errorf("marshalling status patch: %w", err)
 	}
 
-	return r.informer.RestClient().Patch(types.MergePatchType).
-		Resource(mnsTypev1.NamePlural). // ← must match spec.names.plural in the CRD YAML
-		Name(mn.Name).
-		SubResource("status"). // ← /status endpoint, not the main object
-		Body(body).
-		Do(ctx).
-		Error()
+	logger.Debug().Msgf("patching status: %s", string(body))
+	return nil
+	// return r.kube.RestClient().Patch(types.MergePatchType).
+	// 	Resource(mnsTypev1.NamePlural). // ← must match spec.names.plural in the CRD YAML
+	// 	Name(mn.Name).
+	// 	SubResource("status"). // ← /status endpoint, not the main object
+	// 	Body(body).
+	// 	Do(ctx).
+	// 	Error()
 }
 
 // Helper to set conditions
