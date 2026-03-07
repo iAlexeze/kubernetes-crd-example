@@ -8,6 +8,7 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -31,12 +32,8 @@ var _ domain.Reconciler = (*ProjectReconciler)(nil)
 
 func (r *ProjectReconciler) ShutDown() {}
 
-func (r *ProjectReconciler) Resource() domain.Resource {
-	return domain.ProjectResource
-}
-
-func (r *ProjectReconciler) GVK() domain.GVK {
-	return domain.FromGVK(
+func (r *ProjectReconciler) GroupVersionKind() utils.GroupVersionKind {
+	return utils.SetGroupVersionKind(
 		projectTypev1.Group,
 		projectTypev1.Version,
 		projectTypev1.Kind)

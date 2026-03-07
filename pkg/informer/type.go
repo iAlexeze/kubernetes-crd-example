@@ -35,7 +35,7 @@ type Factory struct {
 	ready          chan struct{} // Signal when factory is ready
 }
 
-func NewFactory(cp ClientProvider, wq *queue.Workqueue, scheme *runtime.Scheme, namespace string, resync time.Duration) *Factory {
+func SharedInformerFactory(cp ClientProvider, wq *queue.Workqueue, scheme *runtime.Scheme, namespace string, resync time.Duration) *Factory {
 	return &Factory{
 		clientProvider: cp,
 		queue:          wq,

@@ -2,12 +2,8 @@ package domain
 
 import (
 	"context"
-	"fmt"
-	"time"
 
-	managednsv1alpha "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
-	projectv1alpha1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 )
 
 type Component interface {
@@ -22,63 +18,11 @@ type Component interface {
 	Name() string
 }
 
-// To implement, replace 'componentName' with the appropriate component
-// var _ domain.Component = (*componentName)(nil)
-// func (c *componentName) Start(ctx context.Context) error {}
-// func (c *componentName) Shutdown(ctx context.Context) {}
-// func (c *componentName) Name() string {}
-
 type Reconciler interface {
 	// Reconcile handles the actual business logic for a resource
 	Reconcile(ctx context.Context, key string) error
 
-	// Resource() returns the resource name or kind for the reconciler
-	Resource() Resource
-
-	// GVK() returns the group/kind/version for the reconciler
-	GVK() GVK
-}
-
-// Define resource types
-// Add more resources as needed for uniformity
-type Resource string
-
-const (
-	DefaultResync                             = 30 * time.Second
-	DefaultNamespace                          = "default"
-	ProjectResource                  Resource = "Project"
-	ProjectInformerResource          Resource = "ProjectInformer"
-	ManagedNamespaceResource         Resource = "ManagedNamespace"
-	ManagedNamespaceInformerResource Resource = "ManagedNamespaceInformer"
-)
-
-func (r Resource) String() string {
-	return string(r)
-}
-
-func ResourceType(obj interface{}) Resource {
-	switch obj.(type) {
-	case *projectv1alpha1.Project:
-		return ProjectResource
-	case *managednsv1alpha.ManagedNamespace:
-		return ManagedNamespaceResource
-	default:
-		return "Unknown"
-	}
-
-}
-
-// Consistent Keys
-type GVK string
-
-func FromGVK(group, version, kind string) GVK {
-	return GVK(fmt.Sprintf("%s/%s/%s", group, version, kind))
-}
-
-func FromGVKObj(gvk schema.GroupVersionKind) string {
-	return FromGVK(gvk.Group, gvk.Version, gvk.Kind).String()
-}
-
-func (g GVK) String() string {
-	return string(g)
+	// GroupVersionKind() returns the 'group/version, Kind=kind' for the reconciler.
+	// Useful for reconciler registration and queuing
+	GroupVersionKind() utils.GroupVersionKind
 }

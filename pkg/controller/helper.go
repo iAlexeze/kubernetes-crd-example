@@ -29,14 +29,25 @@ func (c *Controller) processNextItem(ctx context.Context) bool {
 	// Find the right reconciler
 	var targetReconciler domain.Reconciler
 	for _, r := range c.reconcilers {
-		if r.Resource().String() == item.Resource {
+		if r.GroupVersionKind().String() == item.GVK {
+			logger.Debug().
+				Str("gvk", item.GVK).
+				Str("key", item.Key).
+				Msg("found reconciler")
 			targetReconciler = r
 			break
 		}
+		logger.Debug().
+			Str("got", r.GroupVersionKind().String()).
+			Str("expected", item.GVK).
+			Msg("reconciler not found")
 	}
 
 	if targetReconciler == nil {
-		logger.Error().Str("resource", item.Resource).Msg("no reconciler found")
+		logger.Error().
+			Str("gvk", item.GVK).
+			Str("key", item.Key).
+			Msg("no reconciler found")
 		wq.Forget(item)
 		return true
 	}
@@ -45,7 +56,7 @@ func (c *Controller) processNextItem(ctx context.Context) bool {
 	if err := targetReconciler.Reconcile(ctx, item.Key); err != nil {
 		logger.Error().
 			Err(err).
-			Str("resource", item.Resource).
+			Str("gvk", item.GVK).
 			Str("key", item.Key).
 			Msg("reconcile failed")
 		wq.AddRateLimited(item)

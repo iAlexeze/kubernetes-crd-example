@@ -9,6 +9,7 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,12 +38,8 @@ var _ domain.Reconciler = (*ManagedNamespaceReconciler)(nil)
 
 func (r *ManagedNamespaceReconciler) ShutDown() {}
 
-func (r *ManagedNamespaceReconciler) Resource() domain.Resource {
-	return domain.ManagedNamespaceResource
-}
-
-func (r *ManagedNamespaceReconciler) GVK() domain.GVK {
-	return domain.FromGVK(
+func (r *ManagedNamespaceReconciler) GroupVersionKind() utils.GroupVersionKind {
+	return utils.SetGroupVersionKind(
 		mnsTypev1.Group,
 		mnsTypev1.Version,
 		mnsTypev1.Kind)

@@ -63,17 +63,20 @@ func (f *Factory) handleEvent(obj interface{}) {
 		return
 	}
 
-	resourceType := domain.ResourceType(runtimeObj)
+	gvk := runtimeObj.GetObjectKind().GroupVersionKind()
 
-	logger.Debug().Msgf("handling event for %s", resourceType)
-
-	f.queue.Enqueue(obj, resourceType)
+	f.queue.Enqueue(obj, gvk.String())
 }
 
 // newListWatch returns a new ListWatch for the given type
 func (f *Factory) newListWatch(obj runtime.Object) *cache.ListWatch {
 	return &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			// check if context is cancelled
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+
 			// Wait for factory to be ready
 			<-f.ready
 
@@ -81,9 +84,14 @@ func (f *Factory) newListWatch(obj runtime.Object) *cache.ListWatch {
 			if err != nil {
 				return nil, fmt.Errorf("failed to get client for %T: %w", obj, err)
 			}
-			return client.List(context.TODO(), options)
+			return client.List(ctx, options)
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			// check if context is cancelled
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+
 			// Wait for factory to be ready
 			<-f.ready
 
@@ -91,7 +99,7 @@ func (f *Factory) newListWatch(obj runtime.Object) *cache.ListWatch {
 			if err != nil {
 				return nil, fmt.Errorf("failed to get client for %T: %w", obj, err)
 			}
-			return client.Watch(context.TODO(), options)
+			return client.Watch(ctx, options)
 		},
 	}
 }
@@ -169,9 +177,9 @@ func (f *Factory) Shutdown(ctx context.Context) {
 
 	// Stop all informers (they'll stop when ctx is done)
 	f.started = false
-	// Note: We don't close ready again as it's already closed
+	// Note: We don't close ready again as it's already closed to signal ready
 }
 
 func (f *Factory) Name() string {
-	return "Factory"
+	return "shared informer factory"
 }

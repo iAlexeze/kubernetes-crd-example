@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/config"
@@ -15,6 +13,7 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/manager"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 )
 
 type startupCfg struct {
@@ -63,8 +62,8 @@ func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
 		})
 	}
 
-	// Create informer factory
-	infFactory := informer.NewFactory(
+	// Create shared informer factory
+	infFactory := informer.SharedInformerFactory(
 		provider,
 		wq,
 		scheme,
@@ -85,7 +84,7 @@ func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
 
 		// 3. Register in registry
 		reg.Register(
-			domain.FromGVKObj(crd.info.GroupVersionKind),
+			utils.SetGroupVersionKindObj(crd.info.GroupVersionKind),
 			crd.info,
 			inf,
 			rec,
@@ -105,19 +104,7 @@ func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
 
 	// manager
 	mgr := manager.NewManager(hs, cfg.Cluster().DefaultResync)
-
-	fmt.Println("==========================")
-	fmt.Println("REGISTERING MANAGER COMPONENTS...")
-	for _, comp := range components {
-		mgr.Register(comp)
-		logger.Info().Msgf("[%s] component registered", comp.Name())
-	}
-	var names []string
-	for _, comp := range components {
-		names = append(names, comp.Name())
-	}
-	fmt.Printf("Available Components: %s\n", strings.Join(names, ", "))
-	fmt.Println("==========================")
+	mgr.Register(components) // Register all components
 
 	return &startupCfg{
 		event:      ev,

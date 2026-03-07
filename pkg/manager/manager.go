@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -33,10 +34,12 @@ func (m *Manager) Start(ctx context.Context) error {
 	mCtx, mCancel := context.WithCancel(ctx)
 	defer mCancel()
 
+	fmt.Println("===============================")
+	fmt.Println("STARTING MANAGER COMPONENTS...")
 	for _, comp := range m.components {
 		name := comp.Name()
 
-		logger.Info().Msgf("starting: %s...", name)
+		logger.Info().Msgf("[%s] starting...", name)
 		if err := comp.Start(mCtx); err != nil {
 			logger.Error().Err(err).Msgf("failed to start: %s", name)
 			return err
@@ -46,6 +49,15 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	logger.Info().Msg("✅ All services started successfully")
+
+	// Display started components
+	fmt.Println("======================")
+	fmt.Println("STARTED COMPONENTS:")
+	n := 1
+	for _, comp := range m.components {
+		fmt.Printf("%d. %s\n", n, comp.Name())
+		n++
+	}
 
 	// Run post-start hooks (leader election goes here)
 	for _, hook := range m.postStart {
@@ -83,7 +95,7 @@ func (m *Manager) gracefulShutdown(ctx context.Context, cancel context.CancelFun
 			logger.Info().Msgf("%s status: %v", name, utils.StatusOffline)
 		}
 
-		logger.Info().Msg("🎉 All services shut down gracefully")
+		logger.Info().Msg("✅ All services shut down gracefully")
 
 		// Notify Wait() to terminate
 		close(m.done)
@@ -94,9 +106,23 @@ func (m *Manager) gracefulShutdown(ctx context.Context, cancel context.CancelFun
 }
 
 // Register all components
-func (m *Manager) Register(c domain.Component) {
-	m.components = append(m.components, c)
-	logger.Info().Msgf("[%s] component registered", c.Name())
+func (m *Manager) Register(c []domain.Component) {
+	fmt.Println("==================================")
+	fmt.Println("REGISTERING MANAGER COMPONENTS...")
+	for _, comp := range c {
+		m.components = append(m.components, comp)
+		logger.Info().Msgf("[%s] registered", comp.Name())
+	}
+	logger.Info().Msg("✅ All services registered successfully")
+
+	// Display registered components
+	fmt.Println("======================")
+	fmt.Println("REGISTERED COMPONENTS:")
+	n := 1
+	for _, comp := range m.components {
+		fmt.Printf("%d. %s\n", n, comp.Name())
+		n++
+	}
 }
 
 // AddPostStartHook: for services that need to start after manager has started
