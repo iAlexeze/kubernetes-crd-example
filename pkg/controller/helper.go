@@ -2,8 +2,6 @@ package controller
 
 import (
 	"context"
-
-	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 )
 
@@ -26,24 +24,9 @@ func (c *Controller) processNextItem(ctx context.Context) bool {
 	// We call Done at the end of this function to mark the item as processed
 	defer wq.Done(item)
 
-	// Find the right reconciler
-	var targetReconciler domain.Reconciler
-	for _, r := range c.reconcilers {
-		if r.GroupVersionKind().String() == item.GVK {
-			logger.Debug().
-				Str("gvk", item.GVK).
-				Str("key", item.Key).
-				Msg("found reconciler")
-			targetReconciler = r
-			break
-		}
-		logger.Debug().
-			Str("got", r.GroupVersionKind().String()).
-			Str("expected", item.GVK).
-			Msg("reconciler not found")
-	}
-
-	if targetReconciler == nil {
+	// Direct lookup
+	rec := c.reconcilers[item.GVK]
+	if rec == nil {
 		logger.Error().
 			Str("gvk", item.GVK).
 			Str("key", item.Key).
@@ -53,7 +36,7 @@ func (c *Controller) processNextItem(ctx context.Context) bool {
 	}
 
 	// Reconcile
-	if err := targetReconciler.Reconcile(ctx, item.Key); err != nil {
+	if err := rec.Reconcile(ctx, item.Key); err != nil {
 		logger.Error().
 			Err(err).
 			Str("gvk", item.GVK).

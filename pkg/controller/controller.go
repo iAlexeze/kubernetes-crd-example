@@ -12,6 +12,7 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/registry"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -22,14 +23,15 @@ type Controller struct {
 	kube            *kubeclient.Kubeclient
 	informerFactory *informer.Factory
 	event           *event.Event
+	registry        *ResourceRegistry
 	wq              *queue.Workqueue
 	wg              sync.WaitGroup
 	workers         int
-	reconcilers     []domain.Reconciler
-	crds            []kubeclient.CRDInfo
+	reconcilers     map[string]domain.Reconciler
+	crds            []registry.CRDInfo
 }
 
-func NewController(
+func NewControllerManager(
 	kube *kubeclient.Kubeclient,
 	informerFactory *informer.Factory,
 	registry *ResourceRegistry,
@@ -39,15 +41,17 @@ func NewController(
 ) *Controller {
 	c := &Controller{
 		kube:            kube,
-		event:           event,
 		informerFactory: informerFactory,
+		registry:        registry,
+		event:           event,
 		wq:              wq,
 		workers:         workers,
+		reconcilers:     make(map[string]domain.Reconciler),
 	}
 
 	// Load registry entries
-	for _, entry := range registry.entries {
-		c.reconcilers = append(c.reconcilers, entry.Reconciler)
+	for gvk, entry := range registry.Entries() {
+		c.reconcilers[gvk] = entry.Reconciler
 		c.crds = append(c.crds, entry.CRD)
 	}
 

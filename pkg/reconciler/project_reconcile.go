@@ -8,7 +8,6 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
-	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -32,19 +31,7 @@ var _ domain.Reconciler = (*ProjectReconciler)(nil)
 
 func (r *ProjectReconciler) ShutDown() {}
 
-func (r *ProjectReconciler) GroupVersionKind() utils.GroupVersionKind {
-	return utils.SetGroupVersionKind(
-		projectTypev1.Group,
-		projectTypev1.Version,
-		projectTypev1.Kind)
-}
-
-// TODO
-// func (r *ProjectReconciler) Informer() cache.Store {}
-
-// func (r *ProjectReconciler) Controller() cache.Controller {}
-
-// reconcile handles the actual business logic for a project
+// Reconcile handles the actual business logic for a project
 func (r *ProjectReconciler) Reconcile(ctx context.Context, key string) error {
 	// Check if context is cancelled
 	if err := ctx.Err(); err != nil {

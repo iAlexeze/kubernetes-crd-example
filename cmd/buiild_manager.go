@@ -13,6 +13,7 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/manager"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/registry"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 )
 
@@ -24,7 +25,11 @@ type startupCfg struct {
 }
 
 func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
-	scheme, err := buildScheme()
+	// crd registry
+	crdRegistry := registry.NewCRDRegistry()
+
+	// scheme registry
+	scheme, err := registry.NewSchemeRegistry()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("scheme creation error")
 	}
@@ -55,10 +60,10 @@ func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
 	// provider
 	provider := kube.ClientProvider()
 
-	// Register CRD clients
-	for _, crd := range buildCRDs(kube) {
-		provider.Register(crd.obj, func(k *kubeclient.Kubeclient) (informer.GenericClient, error) {
-			return k.NewClient(crd.listObj, crd.info)
+	// Register CRD clients to provider - for automatic client  and informer generation
+	for _, crd := range crdRegistry {
+		provider.Register(crd.Object, func(k *kubeclient.Kubeclient) (informer.GenericClient, error) {
+			return k.NewClient(crd.ListObject, kubeclient.CRDInfo(crd.Info))
 		})
 	}
 
@@ -72,27 +77,30 @@ func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
 	)
 	components = append(components, infFactory)
 
-	// Registry
-	reg := controller.NewRegistry()
+	// Controller Registry
+	reg := controller.NewControllerRegistry()
 
-	for _, crd := range buildCRDs(kube) {
+	// Register CRDs to controller registry
+	logger.Info().Msg("registering CRDs...")
+	for _, crd := range crdRegistry {
 		// 1. Create informer
-		inf := infFactory.For(crd.obj, ctx)
+		inf := infFactory.For(crd.Object, ctx)
 
 		// 2. Create reconciler
-		rec := crd.reconciler(inf, ev)
+		rec := crd.Reconciler(kube, inf, ev)
 
-		// 3. Register in registry
+		// 3. Register in controller registry
+		logger.Debug().Str("GVK", utils.SetGroupVersionKindObj(crd.Info.GroupVersionKind)).Msg("registering CRD")
 		reg.Register(
-			utils.SetGroupVersionKindObj(crd.info.GroupVersionKind),
-			crd.info,
+			utils.SetGroupVersionKindObj(crd.Info.GroupVersionKind),
+			crd.Info,
 			inf,
 			rec,
 		)
 	}
 
-	// controller
-	ctrl := controller.NewController(
+	// controller manager
+	ctrl := controller.NewControllerManager(
 		kube,
 		infFactory,
 		reg,
@@ -104,7 +112,7 @@ func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
 
 	// manager
 	mgr := manager.NewManager(hs, cfg.Cluster().DefaultResync)
-	mgr.Register(components) // Register all components
+	mgr.Register(components) // Register all manager components
 
 	return &startupCfg{
 		event:      ev,

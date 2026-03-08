@@ -58,8 +58,10 @@ func (m *Manager) Start(ctx context.Context) error {
 		fmt.Printf("%d. %s\n", n, comp.Name())
 		n++
 	}
+	fmt.Println("======================")
 
 	// Run post-start hooks (leader election goes here)
+	logger.Info().Msg("Running post-start hooks...")
 	for _, hook := range m.postStart {
 		go hook(mCtx)
 	}

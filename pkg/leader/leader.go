@@ -3,6 +3,7 @@ package leader
 import (
 	"context"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,7 +25,13 @@ type leaderElection struct {
 	cancelFunc context.CancelFunc
 	run        func(context.Context)
 
-	opts Options
+	election theElection
+	opts     Options
+}
+
+type theElection struct {
+	startedLeading atomic.Bool
+	leader         string
 }
 
 type Options struct {
@@ -49,13 +56,18 @@ func NewLeaderElection(
 		opts.Namespace = "default"
 	}
 
-	return &leaderElection{
+	le := &leaderElection{
 		name:  "resource-leader",
 		event: event,
 		kube:  kube,
 		run:   run,
 		opts:  opts,
 	}
+
+	le.election.startedLeading.Store(false)
+	le.election.leader = ""
+
+	return le
 }
 
 func (le *leaderElection) Start(ctx context.Context) error {
@@ -140,7 +152,10 @@ func (le *leaderElection) callbacks() leaderelection.LeaderCallbacks {
 				)
 			}
 
-			logger.Info().Msgf("%s 🏆 became leader, starting controller...", hostname())
+			le.election.leader = hostname()
+			logger.Info().Msgf("%s 🏆 became leader, starting controller...", le.election.leader)
+			le.election.startedLeading.Store(true)
+
 			le.run(ctx)
 		},
 		OnStoppedLeading: func() {
@@ -153,6 +168,16 @@ func (le *leaderElection) callbacks() leaderelection.LeaderCallbacks {
 					}, corev1.EventTypeWarning, "LeaderLost", "%s lost leadership", hostname(),
 				)
 			}
+			// Can perform additional clean up if needed on the actual leader
+			// Example
+			if le.election.startedLeading.Load() {
+				logger.Info().Msg("Performing cleanup on the actual leader...")
+				le.election.leader = ""
+				le.election.startedLeading.Store(false)
+			} else {
+				logger.Info().Msg("No cleanup needed as we never started leading.")
+			}
+
 			logger.Info().Msgf("%s👋 Stopped leading - lease released", hostname())
 		},
 		OnNewLeader: func(identity string) {
@@ -177,4 +202,9 @@ func hostname() string {
 		hostname = uuid.New().String()
 	}
 	return hostname
+}
+
+// Leader returns the instance that won the leader election
+func (le *leaderElection) Leader() string {
+	return le.election.leader
 }

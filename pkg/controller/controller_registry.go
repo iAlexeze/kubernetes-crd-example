@@ -3,12 +3,12 @@ package controller
 
 import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
-	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/registry"
 	"k8s.io/client-go/tools/cache"
 )
 
 type RegistryEntry struct {
-	CRD        kubeclient.CRDInfo
+	CRD        registry.CRDInfo
 	Informer   cache.SharedIndexInformer
 	Reconciler domain.Reconciler
 }
@@ -17,7 +17,7 @@ type ResourceRegistry struct {
 	entries map[string]RegistryEntry
 }
 
-func NewRegistry() *ResourceRegistry {
+func NewControllerRegistry() *ResourceRegistry {
 	return &ResourceRegistry{
 		entries: make(map[string]RegistryEntry),
 	}
@@ -25,7 +25,7 @@ func NewRegistry() *ResourceRegistry {
 
 func (r *ResourceRegistry) Register(
 	gvk string,
-	crd kubeclient.CRDInfo,
+	crd registry.CRDInfo,
 	inf cache.SharedIndexInformer,
 	rec domain.Reconciler,
 ) {

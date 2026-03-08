@@ -63,6 +63,7 @@ func (f *Factory) handleEvent(obj interface{}) {
 		return
 	}
 
+	// Important queuing pattern
 	gvk := runtimeObj.GetObjectKind().GroupVersionKind()
 
 	f.queue.Enqueue(obj, gvk.String())
@@ -117,11 +118,12 @@ func (f *Factory) Start(ctx context.Context) error {
 	close(f.ready)
 
 	// Then start all informers
+	logger.Info().Msgf("starting %v informers...", len(f.informers))
 	for _, inf := range f.informers {
 		if inf == nil {
 			continue
 		}
-		logger.Debug().Msgf("starting informer for %T", inf)
+		logger.Debug().Msgf("informer type: %T", inf)
 		go inf.Run(ctx.Done())
 	}
 

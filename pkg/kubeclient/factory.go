@@ -21,27 +21,6 @@ type CRDInfo struct {
 	Namespace        string
 }
 
-func CRDInfoFrom(group, version, kind, apiPath, plural string, clusterScoped bool) CRDInfo {
-	if apiPath == "" {
-		apiPath = "/apis"
-	}
-
-	if group == "" && version == "" && kind == "" {
-		panic("required variables: Group, Version")
-	}
-
-	return CRDInfo{
-		Group:            group,
-		Version:          version,
-		Kind:             kind,
-		GroupVersion:     &schema.GroupVersion{Group: group, Version: version},
-		GroupVersionKind: schema.GroupVersionKind{Group: group, Version: version, Kind: kind},
-		APIPath:          apiPath,
-		NamePlural:       plural,
-		ClusterScoped:    clusterScoped,
-	}
-}
-
 // SharedClientFactory provides a simple way to build clients from config
 func (k *Kubeclient) SharedClientFactory(info CRDInfo) (*rest.RESTClient, error) {
 	switch {

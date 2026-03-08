@@ -1,10 +1,6 @@
 package domain
 
-import (
-	"context"
-
-	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
-)
+import "context"
 
 type Component interface {
 
@@ -21,8 +17,4 @@ type Component interface {
 type Reconciler interface {
 	// Reconcile handles the actual business logic for a resource
 	Reconcile(ctx context.Context, key string) error
-
-	// GroupVersionKind() returns the 'group/version, Kind=kind' for the reconciler.
-	// Useful for reconciler registration and queuing
-	GroupVersionKind() utils.GroupVersionKind
 }
