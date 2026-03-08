@@ -11,8 +11,8 @@ import (
 
 // For controller queueing
 type QueueItem struct {
-	Key      string
-	Resource domain.Resource
+	Key string
+	GVK string
 }
 
 type Workqueue struct {
@@ -24,7 +24,7 @@ func NewWorkqueue() *Workqueue {
 }
 
 // enqueue adds the object's key to the workqueue
-func (q *Workqueue) Enqueue(obj interface{}, resource domain.Resource) {
+func (q *Workqueue) Enqueue(obj interface{}, gvk string) {
 	// Handle tombstone (deleted objects)
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
@@ -36,8 +36,8 @@ func (q *Workqueue) Enqueue(obj interface{}, resource domain.Resource) {
 		return
 	}
 
-	q.Queue.Add(QueueItem{Key: key, Resource: resource})
-	logger.Debug().Msgf("Enqueued: %s", key)
+	q.Queue.Add(QueueItem{Key: key, GVK: gvk})
+	logger.Debug().Msgf("Enqueued: %s, gvk: %s", key, gvk)
 }
 
 // Methods

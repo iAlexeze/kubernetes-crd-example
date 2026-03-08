@@ -17,25 +17,21 @@ type Event struct {
 	scheme      *runtime.Scheme
 	broadcaster record.EventBroadcaster
 	recorder    record.EventRecorder
-	opts        Options
-}
-
-type Options struct {
-	Component string
+	component   string
 }
 
 var _ domain.Component = (*Event)(nil)
 
-func NewEvent(kube *kubeclient.Kubeclient, scheme *runtime.Scheme, opts Options) *Event {
-	if opts.Component == "" {
-		opts.Component = "project-controller"
+func NewEvent(kube *kubeclient.Kubeclient) *Event {
+	if kube.Scheme() == nil {
+		panic("scheme cannot be nil")
 	}
 
 	return &Event{
-		name:   "event handler",
-		kube:   kube,
-		scheme: scheme,
-		opts:   opts,
+		name:      "event handler",
+		component: "multi-crd-controller",
+		kube:      kube,
+		scheme:    kube.Scheme(),
 	}
 }
 
@@ -56,7 +52,7 @@ func (r *Event) Start(ctx context.Context) error {
 	r.recorder = r.broadcaster.NewRecorder(
 		r.scheme,
 		corev1.EventSource{
-			Component: r.opts.Component,
+			Component: r.component,
 		})
 	return nil
 }

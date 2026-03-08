@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"strings"
+	"context"
 
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/config"
@@ -11,18 +10,11 @@ import (
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/health"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/informer"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
-	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
-	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/reconciler"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	mnsTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
-	projectTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/project/v1alpha1"
-	mnsClientV1alpha1 "github.com/ialexeze/multi-crd-controller/pkg/config/clientset/managedNamespace/v1alpha1"
-	projectsClientV1alpha1 "github.com/ialexeze/multi-crd-controller/pkg/config/clientset/project/v1alpha1"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/manager"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/queue"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/registry"
+	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/utils"
 )
 
 type startupCfg struct {
@@ -32,16 +24,21 @@ type startupCfg struct {
 	manager    *manager.Manager
 }
 
-func buildManager(cfg *config.Config) *startupCfg {
-	scheme, err := buildScheme()
+func buildManager(cfg *config.Config, ctx context.Context) *startupCfg {
+	// crd registry
+	crdRegistry := registry.NewCRDRegistry()
+
+	// scheme registry
+	scheme, err := registry.NewSchemeRegistry()
 	if err != nil {
 		logger.Fatal().Err(err).Msg("scheme creation error")
 	}
 
+	// Initialize components
 	var components []domain.Component
 
 	// health
-	hs := health.NewHealthServer("projects", cfg)
+	hs := health.NewHealthServer(cfg)
 	components = append(components, hs)
 
 	// kube
@@ -52,82 +49,60 @@ func buildManager(cfg *config.Config) *startupCfg {
 	})
 	components = append(components, kube)
 
+	// events
+	ev := event.NewEvent(kube)
+	components = append(components, ev)
+
 	// queue
 	wq := queue.NewWorkqueue()
 	components = append(components, wq)
 
-	// clients
-	projectsClient := projectsClientV1alpha1.NewProjectClient(kube, kubeclient.Options{
-		Group:   projectTypev1.Group,
-		Version: projectTypev1.Version,
-		APIPath: projectTypev1.APIPath,
-	})
-	components = append(components, projectsClient)
+	// provider
+	provider := kube.ClientProvider()
 
-	managedNamespaceClient := mnsClientV1alpha1.NewManagednsClient(kube, kubeclient.Options{
-		Group:   mnsTypev1.Group,
-		Version: mnsTypev1.Version,
-		APIPath: mnsTypev1.APIPath,
-	})
-	components = append(components, managedNamespaceClient)
+	// Register CRD clients to provider - for automatic client  and informer generation
+	for _, crd := range crdRegistry {
+		provider.Register(crd.Object, func(k *kubeclient.Kubeclient) (informer.GenericClient, error) {
+			return k.NewClient(crd.ListObject, kubeclient.CRDInfo(crd.Info))
+		})
+	}
 
-	// informers
-	projInformer := informer.NewProjectInformer(
-		projectsClient,
+	// Create shared informer factory
+	infFactory := informer.SharedInformerFactory(
+		provider,
 		wq,
-		informer.Options{
-			Namespace: cfg.Cluster().Namespace,
-			Resync:    cfg.Cluster().DefaultResync,
-		},
+		scheme,
+		cfg.Cluster().Namespace,
+		cfg.Cluster().DefaultResync,
 	)
-	components = append(components, projInformer)
+	components = append(components, infFactory)
 
-	mnsInformer := informer.NewManagedNamespaceInformer(
-		managedNamespaceClient,
-		wq,
-		informer.Options{
-			Namespace: cfg.Cluster().Namespace,
-			Resync:    cfg.Cluster().DefaultResync,
-		},
-	)
-	components = append(components, mnsInformer)
+	// Controller Registry
+	reg := controller.NewControllerRegistry()
 
-	// events
-	ev := event.NewEvent(kube, scheme, event.Options{Component: cfg.App().Name})
-	components = append(components, ev)
+	// Register CRDs to controller registry
+	logger.Info().Msg("registering CRDs...")
+	for _, crd := range crdRegistry {
+		// 1. Create informer
+		inf := infFactory.For(crd.Object, ctx)
 
-	// reconcilers
-	projReconciler := reconciler.NewProjectReconciler(projInformer, ev)
-	mnsReconciler := reconciler.NewManagedNamespaceReconciler(kube, mnsInformer, ev)
+		// 2. Create reconciler
+		rec := crd.Reconciler(kube, inf, ev)
 
-	// registry
-	reg := controller.NewRegistry()
-	reg.Register(
-		domain.ProjectResource,
-		controller.CRDInfo{
-			Group:   projectTypev1.Group,
-			Version: projectTypev1.Version,
-			Kind:    projectTypev1.Kind,
-			APIPath: projectTypev1.APIPath,
-		},
-		projInformer,
-		projReconciler,
-	)
-	reg.Register(
-		domain.ManagedNamespaceResource,
-		controller.CRDInfo{
-			Group:   mnsTypev1.Group,
-			Version: mnsTypev1.Version,
-			Kind:    mnsTypev1.Kind,
-			APIPath: mnsTypev1.APIPath,
-		},
-		mnsInformer,
-		mnsReconciler,
-	)
+		// 3. Register in controller registry
+		logger.Debug().Str("GVK", utils.SetGroupVersionKindObj(crd.Info.GroupVersionKind)).Msg("registering CRD")
+		reg.Register(
+			utils.SetGroupVersionKindObj(crd.Info.GroupVersionKind),
+			crd.Info,
+			inf,
+			rec,
+		)
+	}
 
-	// controller
-	ctrl := controller.NewController(
+	// controller manager
+	ctrl := controller.NewControllerManager(
 		kube,
+		infFactory,
 		reg,
 		ev,
 		wq,
@@ -137,19 +112,7 @@ func buildManager(cfg *config.Config) *startupCfg {
 
 	// manager
 	mgr := manager.NewManager(hs, cfg.Cluster().DefaultResync)
-
-	fmt.Println("==========================")
-	fmt.Println("REGISTERING MANAGER COMPONENTS...")
-	for _, comp := range components {
-		mgr.Register(comp)
-		logger.Info().Msgf("[%s] component registered", comp.Name())
-	}
-	var names []string
-	for _, comp := range components {
-		names = append(names, comp.Name())
-	}
-	fmt.Printf("Available Components: %s\n", strings.Join(names, ", "))
-	fmt.Println("==========================")
+	mgr.Register(components) // Register all manager components
 
 	return &startupCfg{
 		event:      ev,
@@ -157,26 +120,4 @@ func buildManager(cfg *config.Config) *startupCfg {
 		kube:       kube,
 		manager:    mgr,
 	}
-}
-
-func buildScheme() (*runtime.Scheme, error) {
-	scheme := runtime.NewScheme()
-
-	// 1. Register built-in Kubernetes types
-	metav1.AddToGroupVersion(scheme, metav1.SchemeGroupVersion)
-
-	// 2. Register core Kubernetes types
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-
-	// 3. Register your CRDs
-	if err := projectTypev1.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	if err := mnsTypev1.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-
-	return scheme, nil
 }

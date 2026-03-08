@@ -2,8 +2,6 @@ package controller
 
 import (
 	"context"
-
-	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 )
 
@@ -15,41 +13,39 @@ func (c *Controller) runWorker(ctx context.Context) {
 
 // processNextItem processes one item from the queue
 func (c *Controller) processNextItem(ctx context.Context) bool {
+	wq := c.wq.Queue
+
 	// Wait until there's an item or the queue is shut down
-	item, shutdown := c.q.Queue.Get()
+	item, shutdown := wq.Get()
 	if shutdown {
 		return false
 	}
 
 	// We call Done at the end of this function to mark the item as processed
-	defer c.q.Queue.Done(item)
+	defer wq.Done(item)
 
-	// Find the right reconciler
-	var targetReconciler domain.Reconciler
-	for _, r := range c.reconcilers {
-		if r.Resource() == item.Resource {
-			targetReconciler = r
-			break
-		}
-	}
-
-	if targetReconciler == nil {
-		logger.Error().Str("resource", string(item.Resource)).Msg("no reconciler found")
-		c.q.Queue.Forget(item)
+	// Direct lookup
+	rec := c.reconcilers[item.GVK]
+	if rec == nil {
+		logger.Error().
+			Str("gvk", item.GVK).
+			Str("key", item.Key).
+			Msg("no reconciler found")
+		wq.Forget(item)
 		return true
 	}
 
 	// Reconcile
-	if err := targetReconciler.Reconcile(ctx, item.Key); err != nil {
+	if err := rec.Reconcile(ctx, item.Key); err != nil {
 		logger.Error().
 			Err(err).
-			Str("resource", string(item.Resource)).
+			Str("gvk", item.GVK).
 			Str("key", item.Key).
 			Msg("reconcile failed")
-		c.q.Queue.AddRateLimited(item)
+		wq.AddRateLimited(item)
 		return true
 	}
 
-	c.q.Queue.Forget(item)
+	wq.Forget(item)
 	return true
 }

@@ -22,7 +22,7 @@ func main() {
 	defer cancel()
 
 	// create domain components and build manager
-	startup := buildManager(cfg)
+	startup := buildManager(cfg, ctx)
 
 	// Start all manager components
 	go func() {
@@ -33,6 +33,7 @@ func main() {
 
 	// start leader election as postStartHook AFTER manager is ready
 	startup.manager.AddPostStartHook(func(ctx context.Context) {
+		logger.Info().Msg("starting leader election...")
 		leader := leader.NewLeaderElection(
 			startup.kube,
 			startup.event,

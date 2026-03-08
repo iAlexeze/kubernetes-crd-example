@@ -7,23 +7,23 @@ import (
 	mnsTypev1 "github.com/ialexeze/multi-crd-controller/pkg/config/api/types/managedNamespace/v1alpha1"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/domain"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/event"
-	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/informer"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/kubeclient"
 	"github.com/ialexeze/multi-crd-controller/pkg/config/pkg/logger"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type ManagedNamespaceReconciler struct {
 	kube     *kubeclient.Kubeclient
-	informer informer.InformerComponents
+	informer cache.SharedIndexInformer
 	event    *event.Event
 }
 
 func NewManagedNamespaceReconciler(
 	kube *kubeclient.Kubeclient,
-	informer informer.InformerComponents,
+	informer cache.SharedIndexInformer,
 	event *event.Event,
 ) *ManagedNamespaceReconciler {
 	return &ManagedNamespaceReconciler{
@@ -36,15 +36,6 @@ func NewManagedNamespaceReconciler(
 var _ domain.Reconciler = (*ManagedNamespaceReconciler)(nil)
 
 func (r *ManagedNamespaceReconciler) ShutDown() {}
-
-func (r *ManagedNamespaceReconciler) Resource() domain.Resource {
-	return domain.ManagedNamespaceResource
-}
-
-// TODO
-// func (r *ManagedNamespaceReconciler) Informer() cache.Store {}
-
-// func (r *ManagedNamespaceReconciler) Controller() cache.Controller {}
 
 // Reconcile is called for every ManagedNamespace event.
 // key = "name" (cluster-scoped, no namespace prefix).
@@ -59,7 +50,7 @@ func (r *ManagedNamespaceReconciler) Reconcile(ctx context.Context, key string) 
 	}
 
 	// Read from local cache
-	obj, exists, err := r.informer.Store().GetByKey(key)
+	obj, exists, err := r.informer.GetIndexer().GetByKey(key)
 	if err != nil {
 		return fmt.Errorf("failed to get object from store: %w", err)
 	}

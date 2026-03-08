@@ -20,7 +20,7 @@ func Init(filenames ...string) (*Config, error) {
 
 	cfg := &Config{
 		app: appConfig{
-			Name:        GetStrEnv("APP_NAME", "kubernetes-crd-example"),
+			Name:        GetStrEnv("APP_NAME", "multi-crd-controller"),
 			Version:     GetStrEnv("APP_VERSION", "1.0.0"),
 			Environment: GetStrEnv("APP_ENV", "development"),
 		},
